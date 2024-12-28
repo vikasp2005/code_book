@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { verifyEmail, resendOTP } from '../Api';
 
-
 const VerifyEmail = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -76,8 +75,17 @@ const VerifyEmail = () => {
                 email: location.state.email,
                 otp: otp.join('')
             });
+
             setMessage('Email verified successfully! Redirecting...');
-            setTimeout(() => navigate('/login'), 2000);
+
+            // Redirect based on source
+            setTimeout(() => {
+                if (location.state?.source === 'login') {
+                    navigate('/dashboard');
+                } else {
+                    navigate('/login');
+                }
+            }, 2000);
 
         } catch (error) {
             setMessage(error || 'Verification failed');
@@ -126,7 +134,7 @@ const VerifyEmail = () => {
 
                     <button
                         type="submit"
-                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
                     >
                         Verify Email
                     </button>
