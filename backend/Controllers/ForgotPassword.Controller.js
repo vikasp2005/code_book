@@ -4,7 +4,7 @@ import { User } from '../Models/User.Model.js';
 import { transporter } from '../utils/EmailConfiguration.js';
 
 
-export const Forgot_password= async (req, res) => {
+export const Forgot_password = async (req, res) => {
     try {
         const { email } = req.body;
         const user = await User.findOne({ email });
@@ -19,7 +19,7 @@ export const Forgot_password= async (req, res) => {
         await user.save();
 
         const resetEmail = {
-            from: 'your-email@gmail.com',
+            from: process.env.EMAIL,
             to: email,
             subject: 'Password Reset Request',
             html: `Click <a href="http://localhost:3000/reset-password/${resetToken}">here</a> to reset your password.`
