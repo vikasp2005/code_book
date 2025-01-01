@@ -47,4 +47,26 @@ export const resendOTP = async (data) => {
     }
 }
 
+export const forgotPassword = async (data) => {
+    try {
+        const response = await API.post('/auth/forgot-password', data);
+        return response.data;
+    }
+    catch (error) {
+        console.log(error);
+        throw error.response?.data?.message || 'An error occurred';
+    }
+}
+
+export const resetPassword = async (data, token) => {
+    try {
+        const response = await API.post(`/auth/reset-password/${token}`, data);
+        return response.data;
+    }
+    catch (error) {
+        console.log(error);
+        throw error.response?.data?.message || 'An error occurred';
+    }
+}
+
 export default API;
