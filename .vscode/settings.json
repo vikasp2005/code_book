@@ -32,5 +32,6 @@
   "prettier.htmlWhitespaceSensitivity": "strict",
   "prettier.jsxSingleQuote": true,
   "prettier.singleQuote": true,
-  "prettier.singleAttributePerLine": true
+  "prettier.singleAttributePerLine": true,
+  "autoimport.autoComplete": true
 }

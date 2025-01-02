@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
-import { User } from '../Models/User.Model.js';
-import { transporter } from '../utils/EmailConfiguration.js';
+import { User } from '../../Models/User.Model.js';
+import { transporter } from '../../utils/EmailConfiguration.js';
 
 
 export const Forgot_password = async (req, res) => {

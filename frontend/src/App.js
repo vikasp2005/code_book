@@ -13,7 +13,7 @@ const App = () => {
     <BrowserRouter>
       <Toaster /> {/* Add the Toaster component here, outside of Routes */}
       <Routes>
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<CodeEditor />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/verify-otp" element={<VerifyEmail />} />

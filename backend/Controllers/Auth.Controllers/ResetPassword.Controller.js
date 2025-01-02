@@ -1,4 +1,5 @@
-import { User } from '../Models/User.Model.js';
+import { User } from '../../Models/User.Model.js';
+import bcrypt from 'bcrypt';
 
 
 export const Reset_Password = async (req, res) => {
@@ -21,6 +22,7 @@ export const Reset_Password = async (req, res) => {
 
     res.json({ message: 'Password reset successful' });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: 'Server error' });
   }
 };
