@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, X, Eye, EyeOff } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import PasswordValidator from '../Components/PasswordValidator';
 import { registerUser } from '../Api';
 
 
@@ -15,12 +16,7 @@ const Register = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formErrors, setFormErrors] = useState({});
-    const [passwordChecks, setPasswordChecks] = useState({
-        length: false,
-        uppercase: false,
-        number: false,
-        specialChar: false
-    });
+
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({ type: '', message: '' });
 
@@ -31,9 +27,7 @@ const Register = () => {
             [name]: value
         }));
 
-        if (name === 'password') {
-            checkPassword(value);
-        }
+
 
         // Clear errors when typing
         setFormErrors(prev => ({
@@ -42,14 +36,7 @@ const Register = () => {
         }));
     };
 
-    const checkPassword = (password) => {
-        setPasswordChecks({
-            length: password.length >= 8 && password.length <= 16,
-            uppercase: /[A-Z]/.test(password),
-            number: /\d/.test(password),
-            specialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-        });
-    };
+
 
     const validateForm = () => {
         const errors = {};
@@ -62,8 +49,6 @@ const Register = () => {
 
         if (!formData.password) {
             errors.password = 'Password is required';
-        } else if (Object.values(passwordChecks).includes(false)) {
-            errors.password = 'Password does not meet all requirements';
         }
 
         if (!formData.confirmPassword) {
@@ -155,20 +140,9 @@ const Register = () => {
                         </div>
                         {formErrors.password && <p className="text-red-500 text-sm mt-1">{formErrors.password}</p>}
 
-                        <div className="mt-3 space-y-2">
-                            {Object.entries(passwordChecks).map(([key, value]) => (
-                                <div key={key} className="flex items-center text-sm text-gray-600">
-                                    {value ?
-                                        <Check className="text-green-500 w-4 h-4 mr-2" /> :
-                                        <X className="text-red-500 w-4 h-4 mr-2" />
-                                    }
-                                    <span>{key === 'length' ? '8-16 characters' :
-                                        key === 'uppercase' ? 'One uppercase letter' :
-                                            key === 'number' ? 'One number' : 'One special character'}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
+
+                        <PasswordValidator password={formData.password} className="mt-3" />
+
                     </div>
 
                     <div className="space-y-2">

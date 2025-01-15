@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { User } from '../../Models/User.Model.js';
-import { transporter } from '../../utils/EmailConfiguration.js';
+import { transporter } from '../../Middleware/EmailConfiguration.js';
 
 
 export const Login = async (req, res) => {
@@ -40,6 +40,7 @@ export const Login = async (req, res) => {
 
     req.session.userId = user._id;
     req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
 
     res.json({ message: 'Login successful' });
   } catch (error) {

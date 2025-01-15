@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { validationResult } from "express-validator";
 
 import { User } from "../../Models/User.Model.js";
-import { transporter } from "../../utils/EmailConfiguration.js";
+import { transporter } from "../../Middleware/EmailConfiguration.js";
 
 
 export const Register = async (req, res) => {

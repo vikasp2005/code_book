@@ -7,7 +7,7 @@ const API = axios.create({
 export const login = async (data) => {
     try {
 
-        const response = await API.post('/auth/login', data);
+        const response = await API.post('/auth/login', data, { withCredentials: true });
         return response.data;
     } catch (error) {
         console.log(error);

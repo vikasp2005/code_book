@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import { login, resendOTP } from "../Api";
+import PasswordValidator from "../Components/PasswordValidator";
+import { login } from "../Api";
 
 const Login = () => {
     const navigate = useNavigate();
@@ -146,6 +147,8 @@ const Login = () => {
                                 className={`w-full px-4 py-3 rounded-lg border ${touched.password && errors.password ? 'border-red-500' : 'border-gray-300'
                                     } focus:border-violet-500 focus:ring-2 focus:ring-violet-200`}
                             />
+
+
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
@@ -157,6 +160,7 @@ const Login = () => {
                                 <p className="mt-1 text-sm text-red-500">{errors.password}</p>
                             )}
                         </div>
+                        <PasswordValidator password={formData.password} className="mt-3" />
                     </div>
 
                     <div className="flex justify-between text-sm">

@@ -1,5 +1,5 @@
 import { User } from '../../Models/User.Model.js';
-import { transporter } from '../../utils/EmailConfiguration.js';
+import { transporter } from '../../Middleware/EmailConfiguration.js';
 // New resend OTP route
 export const Resend_OTP = async (req, res) => {
     try {

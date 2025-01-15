@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import PasswordValidator from "../Components/PasswordValidator";
 import { resetPassword } from "../Api";
 
 const ResetPassword = () => {
@@ -14,25 +15,11 @@ const ResetPassword = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [errors, setErrors] = useState({});
 
-    const validateForm = () => {
-        const newErrors = {};
-        if (!password) {
-            newErrors.password = 'Password is required';
-        } else if (password.length < 6) {
-            newErrors.password = 'Password must be at least 6 characters';
-        }
-        if (!confirmPassword) {
-            newErrors.confirmPassword = 'Please confirm your password';
-        } else if (password !== confirmPassword) {
-            newErrors.confirmPassword = 'Passwords do not match';
-        }
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm()) return;
+
 
         setIsLoading(true);
         setMessage({ type: '', text: '' });
@@ -92,6 +79,7 @@ const ResetPassword = () => {
                                 <p className="mt-1 text-sm text-red-500">{errors.password}</p>
                             )}
                         </div>
+                        <PasswordValidator password={password} className="mt-3" />
 
                         <div className="relative">
                             <input

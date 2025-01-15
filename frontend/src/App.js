@@ -1,19 +1,22 @@
 import { Route, Routes, BrowserRouter } from 'react-router-dom';
-import Register from './Components/Register';
-import VerifyEmail from './Components/VerifyEmail';
-import Login from './Components/Login';
-import ForgotPassword from './Components/ForgotPassword';
-import ResetPassword from './Components/ResetPassword';
-import CodeEditor from './Components/CodeEditor';
-import { Toaster } from './Components/ui/toaster'; // Add this import
+import Register from './Pages/Register';
+import VerifyEmail from './Pages/VerifyEmail';
+import Login from './Pages/Login';
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
+import CodeEditor from './Pages/CodeEditor';
+import NavBar from './Components/NavBar';
+import NotebookApp from './Pages/Notebook';
 import './App.css';
 
 const App = () => {
   return (
     <BrowserRouter>
-      <Toaster /> {/* Add the Toaster component here, outside of Routes */}
+      <NavBar />
       <Routes>
         <Route path="/" element={<CodeEditor />} />
+        <Route path="/notebook" element={<NotebookApp />} />
+
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/verify-otp" element={<VerifyEmail />} />
