@@ -2,7 +2,7 @@ import express from 'express';
 
 import { registerValidation } from '../utils/Data_Validators.js';
 import { isAuthenticated } from '../utils/isAuthenticated.js';
-
+import { User } from '../Models/User.Model.js';
 import { Register } from '../Controllers/Auth.Controllers/Register.Controller.js';
 import { Verify_Email } from '../Controllers/Auth.Controllers/Verify_Email.Controller.js';
 import { Resend_OTP } from '../Controllers/Auth.Controllers/ResendOTP.Controller.js';
@@ -27,6 +27,22 @@ Router.post('/forgot-password', Forgot_password);
 Router.post('/reset-password/:token', Reset_Password);
 
 Router.post('/logout', Logout);
+
+Router.get('/user', isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findById(req.session.userId)
+            .select('username email');
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 
 // Protected route example to check authentication
