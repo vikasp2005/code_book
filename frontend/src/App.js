@@ -1,72 +1,122 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+// App.js
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import NavBar from './Components/NavBar';
 import CodeEditor from './Pages/CodeEditor';
 import Login from './Pages/Login';
 import Register from './Pages/Register';
+import Notebook from './Pages/Notebook';
 
-const ProtectedRoute = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
+// Create AuthContext
+export const AuthContext = createContext(null);
+
+
+
+export const useAuth = () => useContext(AuthContext);
+
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [savedPrograms, setSavedPrograms] = useState([]);
+  const navigate = useNavigate();
+
+  const checkAuth = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/auth/user', {
+        withCredentials: true,
+      });
+      setUser(response.data);
+
+      // Fetch saved programs if user is authenticated
+      if (response.data) {
+        const programsResponse = await axios.get('http://localhost:5000/api/managecode/list', {
+          withCredentials: true,
+        });
+        setSavedPrograms(programsResponse.data);
+      }
+    } catch (error) {
+      setUser(null);
+      setSavedPrograms([]);
+      // No session expiration logic here
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        await axios.get('http://localhost:5000/api/auth/user',
-          { withCredentials: true }
-        );
-        setIsAuthenticated(true);
-      } catch (error) {
-        setIsAuthenticated(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     checkAuth();
   }, []);
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  const login = async (userData) => {
+    setUser(userData);
+    await checkAuth(); // Refresh auth state and fetch programs
+  };
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  const logout = async () => {
+    try {
+      await axios.post('http://localhost:5000/api/auth/logout', {},
+        { withCredentials: true }
+      );
+      setUser(null);
+      setSavedPrograms([]);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      logout,
+      savedPrograms,
+      setSavedPrograms,
+      checkAuth
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 const App = () => {
-  const [user, setUser] = useState(null);
-  const [savedPrograms, setSavedPrograms] = useState([]);
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
+const AppContent = () => {
+  const { user, loading, logout, savedPrograms, setSavedPrograms, checkAuth } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate(); // Add this line
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/auth/user',
-          { withCredentials: true }
-        );
-        setUser(response.data);
-        // Fetch saved programs only if user is authenticated
-        if (response.data) {
-          const programsResponse = await axios.get('http://localhost:5000/api/managecode/list',
-            { withCredentials: true }
-          );
-          setSavedPrograms(programsResponse.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user data:', error);
-      }
-    };
+    checkAuth(navigate); // Pass navigate to checkAuth
+  }, [checkAuth, navigate]);
 
-    fetchUserData();
-  }, []);
+
+  useEffect(() => {
+    if (user && location.state?.showSaveDialog) {
+      // Reset state and show save dialog
+      navigate(location.pathname, { replace: true, state: {} });
+      window.dispatchEvent(new Event('show-save-dialog'));
+    }
+  }, [user, location, navigate]);
 
   const handleLoadProgram = async (id) => {
     try {
       const response = await axios.get(`http://localhost:5000/api/managecode/${id}`,
         { withCredentials: true }
       );
-      // You'll need to implement this method in your CodeEditor component
-      // to update the editor's content
       window.dispatchEvent(new CustomEvent('load-program', {
         detail: response.data
       }));
@@ -75,43 +125,53 @@ const App = () => {
     }
   };
 
+  const handleDeleteProgram = async (id) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/managecode/${id}`,
+        { withCredentials: true }
+      );
+      setSavedPrograms(programs =>
+        programs.filter(p => p._id !== id)
+      );
+    } catch (error) {
+      console.error('Failed to delete program:', error);
+    }
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <BrowserRouter>
+    <>
       <NavBar
         isAuthenticated={!!user}
         user={user}
         savedPrograms={savedPrograms}
         onLoadProgram={handleLoadProgram}
-        onDeleteProgram={async (id) => {
-          try {
-            await axios.delete(`http://localhost:5000/api/managecode/${id}`,
-              { withCredentials: true }
-            );
-            setSavedPrograms(programs =>
-              programs.filter(p => p._id !== id)
-            );
-          } catch (error) {
-            console.error('Failed to delete program:', error);
-          }
-        }}
+        onLogout={logout}
+        onDeleteProgram={handleDeleteProgram}
       />
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={<Login onLoginSuccess={checkAuth} />}
+        />
+
         <Route path="/register" element={<Register />} />
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
-              <CodeEditor isAuthenticated={!!user} />
-            </ProtectedRoute>
+            user ? <CodeEditor /> : <Navigate to="/login" state={{ from: '/dashboard' }} />
           }
         />
         <Route
           path="/"
-          element={<CodeEditor isAuthenticated={!!user} />}
+          element={<CodeEditor />}
         />
+        <Route path="/notebook" element={<Notebook />} />
       </Routes>
-    </BrowserRouter>
+    </>
   );
 };
 

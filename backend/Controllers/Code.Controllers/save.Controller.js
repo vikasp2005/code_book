@@ -8,6 +8,18 @@ export const save = async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
+        // Check for existing file
+        const existingProgram = await Code.findOne({
+            fileName,
+            user: req.session.userId
+        });
+
+        if (existingProgram) {
+            return res.status(400).json({
+                error: 'A file with this name already exists'
+            });
+        }
+
         const new_code = new Code({
             author: req.session.userId,
             fileName,
@@ -103,3 +115,20 @@ export const deleteProgram = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+export const checkProgram = async (req, res) => {
+    try {
+        const { fileName } = req.params;
+        const existingProgram = await Code.findOne({
+            fileName: fileName,
+            user: req.session.userId
+        });
+
+        return res.json({ exists: !!existingProgram });
+    } catch (error) {
+        console.error('Error checking filename:', error);
+        return res.status(500).json({
+            error: 'Server error while checking filename'
+        });
+    }
+}

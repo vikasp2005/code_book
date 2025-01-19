@@ -1,10 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Editor from "@monaco-editor/react";
-import { Play, StopCircle, Square, Save, Menu, X, FolderOpen } from "lucide-react";
+import { Play, StopCircle, Square, Save, X, Plus } from "lucide-react";
 import Alert from '../Components/Alert';
+import { useAuth } from '../App';
 import axios from 'axios';
 
-// Utility function for generating UUIDs
+// Utility function for generating UUIDs remains the same
 const generateUUID = () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
@@ -13,7 +16,7 @@ const generateUUID = () => {
     });
 };
 
-// Custom Dialog Component
+// Custom Dialog Component remains the same
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
@@ -35,7 +38,7 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
     );
 };
 
-// Custom Button Component
+// Custom Button Component remains the same
 const CustomButton = ({ children, variant = 'primary', className = '', ...props }) => {
     const baseStyles = "inline-flex items-center px-4 py-2 text-sm font-medium rounded transition-colors";
     const variants = {
@@ -52,8 +55,10 @@ const CustomButton = ({ children, variant = 'primary', className = '', ...props 
     );
 };
 
-const CodeEditor = ({ isAuthenticated }) => {
-    const [code, setCode] = useState('');
+const CodeEditor = () => {
+    const [code, setCode] = useState(() => {
+        return localStorage.getItem('unsavedCode') || '';
+    });
     const [language, setLanguage] = useState('python');
     const [terminal, setTerminal] = useState('');
     const [isRunning, setIsRunning] = useState(false);
@@ -63,10 +68,53 @@ const CodeEditor = ({ isAuthenticated }) => {
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [fileName, setFileName] = useState('');
     const [currentFileId, setCurrentFileId] = useState(null);
+    const [isFileNameExists, setIsFileNameExists] = useState(false);
+    const [showNewFileDialog, setShowNewFileDialog] = useState(false);
     const wsRef = useRef(null);
     const terminalRef = useRef(null);
     const clientId = useRef(generateUUID());
+    const { user } = useAuth();
+    const [isFileSaved, setIsFileSaved] = useState(false);
+    const [redirectAfterLogin, setRedirectAfterLogin] = useState(false);
 
+    const [userFiles, setUserFiles] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+
+
+    useEffect(() => {
+        localStorage.setItem('unsavedCode', code);
+    }, [code]);
+
+    useEffect(() => {
+        if (!!user) {
+            fetchUserFiles();
+        }
+    }, [user]);
+
+
+    useEffect(() => {
+        if (code !== localStorage.getItem('unsavedCode')) {
+            setIsFileSaved(false);
+        }
+        localStorage.setItem('unsavedCode', code);
+    }, [code]);
+
+    const fetchUserFiles = async () => {
+        try {
+            const response = await axios.get('http://localhost:5000/api/managecode/list', {
+                withCredentials: true
+            });
+            setUserFiles(response.data);
+        } catch (error) {
+            showAlert('Failed to fetch files', 'error');
+        }
+    };
+
+
+
+    // Handle program load effect remains the same
     useEffect(() => {
         const handleProgramLoad = (event) => {
             const { code, language } = event.detail;
@@ -79,9 +127,8 @@ const CodeEditor = ({ isAuthenticated }) => {
         return () => window.removeEventListener('load-program', handleProgramLoad);
     }, []);
 
+    // WebSocket connection effect remains the same
     useEffect(() => {
-        if (!isAuthenticated) return;
-
         const connectWebSocket = () => {
             const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${clientId.current}`);
 
@@ -124,21 +171,108 @@ const CodeEditor = ({ isAuthenticated }) => {
                 wsRef.current.close();
             }
         };
-    }, [isAuthenticated]);
+    }, []);
 
-    const showAlert = (message, type) => {
-        const id = crypto.randomUUID();
-        setAlerts(prev => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setAlerts(prev => prev.filter(alert => alert.id !== id));
-        }, 3000);
-    };
+    useEffect(() => {
+        const handleShowSaveDialog = () => {
+            setShowSaveDialog(true);
+        };
 
-    const handleSaveCode = async () => {
-        if (!isAuthenticated) {
-            showAlert('Please log in to save your code', 'error');
+        window.addEventListener('show-save-dialog', handleShowSaveDialog);
+
+        return () => {
+            window.removeEventListener('show-save-dialog', handleShowSaveDialog);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (user && location.state?.redirectAfterLogin) {
+            setShowSaveDialog(true); // Show save dialog
+            navigate(location.state.from || '/', { replace: true }); // Remove redirectAfterLogin from state
+        }
+    }, [user, location.state, navigate]);
+
+
+
+
+
+
+
+
+    const handleSaveAndNew = async () => {
+
+
+        if (!user) {
+            showAlert('Please login to save your code', 'info');
+            navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
+
             return;
         }
+
+        try {
+            if (currentFileId) {
+                // Update existing file
+                await axios.put(`http://localhost:5000/api/managecode/update/${currentFileId}`, {
+                    code,
+                    language,
+                }, { withCredentials: true });
+                setShowNewFileDialog(false);
+                clearEditor();
+                showAlert('Code updated successfully', 'success');
+            } else {
+                setShowNewFileDialog(false);
+                setShowSaveDialog(true); // Show save dialog for new file
+            }
+        } catch (error) {
+            showAlert(error.message, 'error');
+        }
+    };
+
+
+
+
+
+
+    const handleNewFile = () => {
+        if (!user && code.trim()) {
+            setShowNewFileDialog(true);
+            setRedirectAfterLogin(true); // Handle login redirection
+            return;
+        }
+
+        if (code.trim() && (!isFileSaved || currentFileId)) {
+            setShowNewFileDialog(true); // Show dialog for unsaved changes or updates
+            return;
+        }
+
+        clearEditor(); // If no unsaved changes, clear the editor
+    };
+
+
+
+
+
+
+    const handleSaveCode = async () => {
+        if (!code.trim()) {
+            showAlert('Please enter some code to save', 'error'); // Show alert if code is empty
+            return;
+        }
+        if (!code.trim()) {
+            if (!user) {
+                localStorage.setItem('unsavedCode', code);
+                showAlert('Please login to save your code', 'info');
+                setTimeout(() => {
+                    navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
+
+                }, 1500); // Delay to show the alert before navigation
+            } else {
+                showAlert('Please enter some code to save', 'error');
+            }
+            return;
+        }
+
+
 
         if (!currentFileId) {
             setShowSaveDialog(true);
@@ -150,19 +284,37 @@ const CodeEditor = ({ isAuthenticated }) => {
                 code,
                 language,
             }, { withCredentials: true });
+            setIsFileSaved(true);
             showAlert('Code updated successfully', 'success');
+            await fetchUserFiles();
         } catch (error) {
             showAlert(error.message, 'error');
         }
     };
 
     const handleSaveNewFile = async () => {
+        if (!user) {
+            showAlert('Please login to save your code', 'info');
+            setTimeout(() => {
+                navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
+
+            }, 1500); // Delay to show the alert before navigation
+            return;
+        }
+
         if (!fileName.trim()) {
             showAlert('Please enter a file name', 'error');
             return;
         }
 
         try {
+            const exists = await checkFileNameExists(fileName);
+            if (exists) {
+                setIsFileNameExists(true);
+                showAlert('File name already exists', 'warning');
+                return;
+            }
+
             const response = await axios.post('http://localhost:5000/api/managecode/save', {
                 fileName,
                 code,
@@ -172,9 +324,93 @@ const CodeEditor = ({ isAuthenticated }) => {
             setCurrentFileId(response.data.id);
             setShowSaveDialog(false);
             setFileName('');
+            setIsFileNameExists(false);
+            setIsFileSaved(true);
             showAlert('Code saved successfully', 'success');
+            localStorage.removeItem('unsavedCode');
+            await fetchUserFiles();
+
+            // Clear editor if this was initiated from New File dialog
+            if (showNewFileDialog) {
+                clearEditor();
+                setShowNewFileDialog(false);
+            }
         } catch (error) {
             showAlert(error.message, 'error');
+        }
+    };
+
+    const handleDontSaveAndNew = () => {
+        setShowNewFileDialog(false);
+        clearEditor(); // Clear the editor without saving
+    };
+
+
+
+
+
+
+
+
+    const checkFileNameExists = async (name) => {
+        try {
+            if (!user) return false;
+
+            // First check against locally stored files
+            const fileExists = userFiles.some(file =>
+                file.fileName.toLowerCase() === name.toLowerCase()
+            );
+
+            if (fileExists) {
+                return true;
+            }
+
+            // Then check with server
+            const response = await axios.get(
+                `http://localhost:5000/api/managecode/checkfilename/${encodeURIComponent(name)}`,
+                { withCredentials: true }
+            );
+            return response.data.exists;
+        } catch (error) {
+            showAlert('Error checking file name', 'error');
+            return false;
+        }
+    };
+
+    const showAlert = (message, type = 'info') => {
+        const id = generateUUID();
+        setAlerts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setAlerts(prev => prev.filter(alert => alert.id !== id));
+        }, 3000);
+    };
+
+
+
+
+
+
+
+
+
+    const clearEditor = () => {
+        setCode('');
+        setCurrentFileId(null);
+        setFileName('');
+        setIsFileSaved(true);
+        localStorage.removeItem('unsavedCode');
+    };
+
+
+
+    const handleFileNameChange = async (e) => {
+        const value = e.target.value;
+        setFileName(value);
+        if (value.trim()) {
+            const exists = await checkFileNameExists(value);
+            setIsFileNameExists(exists);
+        } else {
+            setIsFileNameExists(false);
         }
     };
 
@@ -231,33 +467,30 @@ const CodeEditor = ({ isAuthenticated }) => {
         }
     };
 
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter' && isRunning) {
-            e.preventDefault();
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: 'input',
-                    input: inputValue
-                }));
-                setTerminal(prev => prev + inputValue + '\n');
-                setInputValue('');
-            }
-        }
-    };
-
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="fixed top-4 right-4 z-50 space-y-2">
                 {alerts.map(alert => (
-                    <Alert key={alert.id} variant={alert.type === 'error' ? 'destructive' : 'default'}>
-                        {alert.message}
-                    </Alert>
+                    <Alert
+                        key={alert.id}
+                        message={alert.message}
+                        type={alert.type}
+                        onClose={() => setAlerts(prev => prev.filter(a => a.id !== alert.id))}
+                    />
                 ))}
             </div>
 
             <div className="flex flex-col space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
+                        <CustomButton
+                            variant="outline"
+                            onClick={handleNewFile}
+                        >
+                            <Plus className="h-4 w-4 mr-1" />
+                            New File
+                        </CustomButton>
+
                         <CustomButton
                             variant="primary"
                             onClick={handleRunCode}
@@ -286,7 +519,7 @@ const CodeEditor = ({ isAuthenticated }) => {
                             onClick={handleSaveCode}
                         >
                             <Save className="h-4 w-4 mr-1" />
-                            Save
+                            {currentFileId ? 'Update' : 'Save'}
                         </CustomButton>
                     </div>
 
@@ -339,7 +572,19 @@ const CodeEditor = ({ isAuthenticated }) => {
                                         type="text"
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}
-                                        onKeyPress={handleKeyPress}
+                                        onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && isRunning) {
+                                                e.preventDefault();
+                                                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                                                    wsRef.current.send(JSON.stringify({
+                                                        type: 'input',
+                                                        input: inputValue
+                                                    }));
+                                                    setTerminal(prev => prev + inputValue + '\n');
+                                                    setInputValue('');
+                                                }
+                                            }
+                                        }}
                                         className="flex-1 ml-2 bg-transparent text-white font-mono text-sm focus:outline-none"
                                         placeholder="Type input and press Enter..."
                                     />
@@ -352,7 +597,11 @@ const CodeEditor = ({ isAuthenticated }) => {
 
             <CustomDialog
                 isOpen={showSaveDialog}
-                onClose={() => setShowSaveDialog(false)}
+                onClose={() => {
+                    setShowSaveDialog(false);
+                    setFileName('');
+                    setIsFileNameExists(false);
+                }}
                 title="Save Program"
             >
                 <div className="space-y-4">
@@ -363,28 +612,66 @@ const CodeEditor = ({ isAuthenticated }) => {
                         <input
                             id="fileName"
                             type="text"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'
+                                }`}
                             placeholder="Enter file name"
                             value={fileName}
-                            onChange={(e) => setFileName(e.target.value)}
+                            onChange={handleFileNameChange}
                         />
+                        {isFileNameExists && (
+                            <p className="mt-1 text-sm text-red-600">
+                                This file name already exists. Please choose a different name.
+                            </p>
+                        )}
                     </div>
                     <div className="flex justify-end space-x-2">
                         <CustomButton
                             variant="outline"
-                            onClick={() => setShowSaveDialog(false)}
+                            onClick={() => {
+                                setShowSaveDialog(false);
+                                setFileName('');
+                                setIsFileNameExists(false);
+                            }}
                         >
                             Cancel
                         </CustomButton>
                         <CustomButton
                             variant="primary"
                             onClick={handleSaveNewFile}
+                            disabled={isFileNameExists || !fileName.trim()}
                         >
                             Save
                         </CustomButton>
                     </div>
                 </div>
             </CustomDialog>
+            <CustomDialog
+                isOpen={showNewFileDialog}
+                onClose={() => setShowNewFileDialog(false)}
+                title="Create New File"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        You have unsaved changes. Would you like to save them before creating a new file?
+                    </p>
+                    <div className="flex justify-end space-x-2">
+                        <CustomButton
+                            variant="outline"
+                            onClick={handleDontSaveAndNew}
+                        >
+                            Don't Save
+                        </CustomButton>
+                        <CustomButton
+                            variant="primary"
+                            onClick={handleSaveAndNew}
+                        >
+                            {currentFileId ? 'Update & Create New' : 'Save & Create New'}
+                        </CustomButton>
+                    </div>
+                </div>
+            </CustomDialog>
+
+
         </div>
     );
 };

@@ -1,12 +1,18 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import PasswordValidator from "../Components/PasswordValidator";
 import { login } from "../Api";
 
-const Login = () => {
+const Login = ({ onLoginSuccess }) => {
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [formData, setFormData] = useState({
+        email: '',
+        password: ''
+    });
+
+    const location = useLocation();
+    const from = location.state?.from || '/';
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [showPassword, setShowPassword] = useState(false);
@@ -67,25 +73,20 @@ const Login = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            const response = await login(formData);
+            const response = await login(formData); // Call login API
             setMessage({ type: 'success', text: 'Login successful!' });
 
             setTimeout(() => {
-                navigate('/dashboard')
-            }, 2000);
-
-
-
-
-        }
-
-
-        catch (err) {
+                onLoginSuccess(); // Refresh authentication state
+                const redirectTo = from && from !== '/' ? from : '/'; // Redirect to "from" or "/"
+                navigate(redirectTo, { replace: true, state: { showSaveDialog: true } });
+            }, 1500);
+        } catch (err) {
             if (err === 'Email verification required') {
                 setMessage({
                     type: 'error',
                     text: `${err}`
-                })
+                });
                 setTimeout(() => {
                     navigate('/verify-otp', {
                         state: {
@@ -94,17 +95,18 @@ const Login = () => {
                         }
                     });
                 }, 2000);
-
-
+            } else {
+                setMessage({
+                    type: 'error',
+                    text: err || 'Login failed. Please try again.'
+                });
             }
-            setMessage({
-                type: 'error',
-                text: err || 'Login failed. Please try again.'
-            });
         } finally {
             setIsLoading(false);
         }
     };
+
+
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 p-6">

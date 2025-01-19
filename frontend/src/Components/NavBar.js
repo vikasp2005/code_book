@@ -1,23 +1,25 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { User, LogOut, Menu, FolderOpen, Trash } from "lucide-react";
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { User, LogOut, Menu, FolderOpen, Trash, X } from "lucide-react";
 
-const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteProgram }) => {
+const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteProgram, onLogout }) => {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProgramsMenu, setShowProgramsMenu] = useState(false);
-    const navigate = useNavigate();
 
-    const handleLogout = async () => {
-        try {
-            await axios.post('http://localhost:5000/api/auth/logout', {},
-                { withCredentials: true }
-            );
-            navigate('/login');
-        } catch (error) {
-            console.error('Logout failed:', error);
-        }
-    };
+    // Close menus when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (!event.target.closest('.user-menu-container')) {
+                setShowUserMenu(false);
+            }
+            if (!event.target.closest('.programs-menu-container')) {
+                setShowProgramsMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     return (
         <nav className="bg-white shadow-sm">
@@ -25,7 +27,7 @@ const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteP
                 <div className="flex justify-between h-16">
                     <div className="flex items-center space-x-4">
                         {isAuthenticated && (
-                            <div className="relative">
+                            <div className="relative programs-menu-container">
                                 <button
                                     onClick={() => setShowProgramsMenu(!showProgramsMenu)}
                                     className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
@@ -36,30 +38,49 @@ const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteP
 
                                 {showProgramsMenu && (
                                     <div className="absolute left-0 mt-2 w-64 bg-white rounded-md shadow-lg z-50">
+                                        <div className="flex justify-between items-center px-4 py-2 border-b">
+                                            <span className="font-medium">Saved Programs</span>
+                                            <button
+                                                onClick={() => setShowProgramsMenu(false)}
+                                                className="p-1 hover:bg-gray-100 rounded"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                         <div className="py-1 max-h-96 overflow-y-auto">
-                                            {savedPrograms.map((program) => (
-                                                <div
-                                                    key={program._id}
-                                                    className="flex items-center justify-between px-4 py-2 hover:bg-gray-100"
-                                                >
-                                                    <button
-                                                        onClick={() => {
-                                                            onLoadProgram(program._id);
-                                                            setShowProgramsMenu(false);
-                                                        }}
-                                                        className="flex items-center flex-1"
-                                                    >
-                                                        <FolderOpen className="h-4 w-4 mr-2" />
-                                                        <span className="truncate">{program.fileName}</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => onDeleteProgram(program._id)}
-                                                        className="p-1 hover:text-red-600"
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </button>
+                                            {savedPrograms.length === 0 ? (
+                                                <div className="px-4 py-2 text-sm text-gray-500">
+                                                    No files saved yet
                                                 </div>
-                                            ))}
+                                            ) : (
+                                                savedPrograms.map((program) => (
+                                                    <div
+                                                        key={program._id}
+                                                        className="flex items-center justify-between px-4 py-2 hover:bg-gray-100"
+                                                    >
+                                                        <button
+                                                            onClick={() => {
+                                                                onLoadProgram(program._id);
+                                                                setShowProgramsMenu(false);
+                                                            }}
+                                                            className="flex items-center flex-1"
+                                                        >
+                                                            <FolderOpen className="h-4 w-4 mr-2" />
+                                                            <span className="truncate">{program.fileName}</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm('Are you sure you want to delete this program?')) {
+                                                                    onDeleteProgram(program._id);
+                                                                }
+                                                            }}
+                                                            className="p-1 hover:text-red-600"
+                                                        >
+                                                            <Trash className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -81,7 +102,7 @@ const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteP
                                 </Link>
                             </>
                         ) : (
-                            <div className="relative">
+                            <div className="relative user-menu-container">
                                 <button
                                     onClick={() => setShowUserMenu(!showUserMenu)}
                                     className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100"
@@ -97,7 +118,10 @@ const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteP
                                         </div>
                                         <div className="py-1">
                                             <button
-                                                onClick={handleLogout}
+                                                onClick={() => {
+                                                    onLogout();
+                                                    setShowUserMenu(false);
+                                                }}
                                                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                             >
                                                 <LogOut className="h-4 w-4 mr-2" />
