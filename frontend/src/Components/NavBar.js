@@ -70,9 +70,9 @@ const NavBar = ({ isAuthenticated, user, savedPrograms, onLoadProgram, onDeleteP
                                                         </button>
                                                         <button
                                                             onClick={() => {
-                                                                if (window.confirm('Are you sure you want to delete this program?')) {
-                                                                    onDeleteProgram(program._id);
-                                                                }
+
+                                                                onDeleteProgram(program._id);
+
                                                             }}
                                                             className="p-1 hover:text-red-600"
                                                         >

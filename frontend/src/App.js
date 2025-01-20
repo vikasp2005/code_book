@@ -1,5 +1,4 @@
-// App.js
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import NavBar from './Components/NavBar';
@@ -7,12 +6,13 @@ import CodeEditor from './Pages/CodeEditor';
 import Login from './Pages/Login';
 import Register from './Pages/Register';
 import Notebook from './Pages/Notebook';
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
+import VerifyEmail from './Pages/VerifyEmail';
+import DeleteConfirmationDialog from './Components/DeleteConfirmationDialog';
 
 // Create AuthContext
 export const AuthContext = createContext(null);
-
-
-
 export const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }) => {
@@ -21,15 +21,14 @@ const AuthProvider = ({ children }) => {
   const [savedPrograms, setSavedPrograms] = useState([]);
   const navigate = useNavigate();
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/auth/user', {
         withCredentials: true,
       });
       setUser(response.data);
 
-      // Fetch saved programs if user is authenticated
-      if (response.data) {
+      if (response.data && (!savedPrograms.length || savedPrograms.length === 0)) {
         const programsResponse = await axios.get('http://localhost:5000/api/managecode/list', {
           withCredentials: true,
         });
@@ -38,15 +37,10 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       setUser(null);
       setSavedPrograms([]);
-      // No session expiration logic here
     } finally {
       setLoading(false);
     }
-  };
-
-
-
-
+  }, [savedPrograms.length]);
 
   useEffect(() => {
     checkAuth();
@@ -54,7 +48,7 @@ const AuthProvider = ({ children }) => {
 
   const login = async (userData) => {
     setUser(userData);
-    await checkAuth(); // Refresh auth state and fetch programs
+    await checkAuth();
   };
 
   const logout = async () => {
@@ -64,6 +58,7 @@ const AuthProvider = ({ children }) => {
       );
       setUser(null);
       setSavedPrograms([]);
+      navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -84,35 +79,16 @@ const AuthProvider = ({ children }) => {
   );
 };
 
-const App = () => {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </BrowserRouter>
-  );
-};
-
 const AppContent = () => {
   const { user, loading, logout, savedPrograms, setSavedPrograms, checkAuth } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate(); // Add this line
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    checkAuth(navigate); // Pass navigate to checkAuth
-  }, [checkAuth, navigate]);
+  // State for delete dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [programToDelete, setProgramToDelete] = useState(null);
 
-
-  useEffect(() => {
-    if (user && location.state?.showSaveDialog) {
-      // Reset state and show save dialog
-      navigate(location.pathname, { replace: true, state: {} });
-      window.dispatchEvent(new Event('show-save-dialog'));
-    }
-  }, [user, location, navigate]);
-
-  const handleLoadProgram = async (id) => {
+  const handleLoadProgram = useCallback(async (id) => {
     try {
       const response = await axios.get(`http://localhost:5000/api/managecode/${id}`,
         { withCredentials: true }
@@ -123,20 +99,39 @@ const AppContent = () => {
     } catch (error) {
       console.error('Failed to load program:', error);
     }
-  };
+  }, []);
 
-  const handleDeleteProgram = async (id) => {
-    try {
-      await axios.delete(`http://localhost:5000/api/managecode/${id}`,
-        { withCredentials: true }
-      );
-      setSavedPrograms(programs =>
-        programs.filter(p => p._id !== id)
-      );
-    } catch (error) {
-      console.error('Failed to delete program:', error);
+  const handleDeleteProgram = useCallback(async (id) => {
+    const program = savedPrograms.find(p => p._id === id);
+    if (program) {
+      setProgramToDelete(program);
+      setDeleteDialogOpen(true);
+    }
+  }, [savedPrograms]);
+
+  const confirmDelete = async () => {
+    if (programToDelete) {
+      try {
+        await axios.delete(`http://localhost:5000/api/managecode/${programToDelete._id}`,
+          { withCredentials: true }
+        );
+        setSavedPrograms(programs =>
+          programs.filter(p => p._id !== programToDelete._id)
+        );
+        setDeleteDialogOpen(false);
+        setProgramToDelete(null);
+      } catch (error) {
+        console.error('Failed to delete program:', error);
+      }
     }
   };
+
+  useEffect(() => {
+    if (user && location.state?.showSaveDialog) {
+      navigate(location.pathname, { replace: true, state: {} });
+      window.dispatchEvent(new Event('show-save-dialog'));
+    }
+  }, [user, location, navigate]);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -152,26 +147,48 @@ const AppContent = () => {
         onLogout={logout}
         onDeleteProgram={handleDeleteProgram}
       />
-      <Routes>
-        <Route
-          path="/login"
-          element={<Login onLoginSuccess={checkAuth} />}
-        />
 
+      <DeleteConfirmationDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setProgramToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        fileName={programToDelete?.fileName || ''}
+      />
+
+      <Routes>
+        {/* Authentication Routes */}
+        <Route path="/login" element={<Login onLoginSuccess={checkAuth} />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
-            user ? <CodeEditor /> : <Navigate to="/login" state={{ from: '/dashboard' }} />
+            user ? <CodeEditor fetchUserFiles={checkAuth} /> : <Navigate to="/login" state={{ from: '/dashboard' }} />
           }
         />
-        <Route
-          path="/"
-          element={<CodeEditor />}
-        />
+
+        {/* Public Routes */}
+        <Route path="/" element={<CodeEditor />} />
         <Route path="/notebook" element={<Notebook />} />
       </Routes>
     </>
+  );
+};
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </BrowserRouter>
   );
 };
 

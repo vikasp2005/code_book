@@ -79,7 +79,7 @@ const Login = ({ onLoginSuccess }) => {
             setTimeout(() => {
                 onLoginSuccess(); // Refresh authentication state
                 const redirectTo = from && from !== '/' ? from : '/'; // Redirect to "from" or "/"
-                navigate(redirectTo, { replace: true, state: { showSaveDialog: true } });
+                navigate(redirectTo, { replace: true, state: { showSaveDialog: location.state?.showSaveDialog } });
             }, 1500);
         } catch (err) {
             if (err === 'Email verification required') {

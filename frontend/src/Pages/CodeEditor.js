@@ -87,11 +87,7 @@ const CodeEditor = () => {
         localStorage.setItem('unsavedCode', code);
     }, [code]);
 
-    useEffect(() => {
-        if (!!user) {
-            fetchUserFiles();
-        }
-    }, [user]);
+
 
 
     useEffect(() => {
@@ -101,16 +97,7 @@ const CodeEditor = () => {
         localStorage.setItem('unsavedCode', code);
     }, [code]);
 
-    const fetchUserFiles = async () => {
-        try {
-            const response = await axios.get('http://localhost:5000/api/managecode/list', {
-                withCredentials: true
-            });
-            setUserFiles(response.data);
-        } catch (error) {
-            showAlert('Failed to fetch files', 'error');
-        }
-    };
+
 
 
 
@@ -258,23 +245,21 @@ const CodeEditor = () => {
             showAlert('Please enter some code to save', 'error'); // Show alert if code is empty
             return;
         }
-        if (!code.trim()) {
-            if (!user) {
-                localStorage.setItem('unsavedCode', code);
-                showAlert('Please login to save your code', 'info');
-                setTimeout(() => {
-                    navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
 
-                }, 1500); // Delay to show the alert before navigation
-            } else {
-                showAlert('Please enter some code to save', 'error');
-            }
-            return;
+        if (!user) {
+            localStorage.setItem('unsavedCode', code);
+            showAlert('Please login to save your code', 'info');
+            await setTimeout(() => {
+                navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
+
+            }, 1500); // Delay to show the alert before navigation
         }
 
 
 
-        if (!currentFileId) {
+
+
+        else if (!currentFileId) {
             setShowSaveDialog(true);
             return;
         }
@@ -286,7 +271,6 @@ const CodeEditor = () => {
             }, { withCredentials: true });
             setIsFileSaved(true);
             showAlert('Code updated successfully', 'success');
-            await fetchUserFiles();
         } catch (error) {
             showAlert(error.message, 'error');
         }
@@ -328,8 +312,7 @@ const CodeEditor = () => {
             setIsFileSaved(true);
             showAlert('Code saved successfully', 'success');
             localStorage.removeItem('unsavedCode');
-            await fetchUserFiles();
-
+            clearEditor();
             // Clear editor if this was initiated from New File dialog
             if (showNewFileDialog) {
                 clearEditor();
@@ -547,7 +530,10 @@ const CodeEditor = () => {
                     height="400px"
                     language={language}
                     value={code}
-                    onChange={(value) => setCode(value || '')}
+                    onChange={(value) => {
+                        setCode(value || '')
+                        setIsFileSaved(false)
+                    }}
                     theme="vs-dark"
                     options={{
                         minimap: { enabled: false },
