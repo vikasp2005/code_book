@@ -1,4 +1,6 @@
 import express from 'express';
+import { WebSocket } from 'ws';
+
 import { executeCode } from '../utils/ExecuteCode.js';
 import { runningProcesses, wsClients } from '../utils/ExecuteCode.js';
 
