@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Loader, CustomButton } from '../Pages/CodeEditor';
 import { X } from 'lucide-react';
 
-const DeleteConfirmationDialog = ({ isOpen, onClose, onConfirm, fileName }) => {
+const DeleteConfirmationDialog = ({ isOpen, onClose, fileName, confirmDelete, isDeleting }) => {
     const [inputFileName, setInputFileName] = useState('');
     const [error, setError] = useState('');
 
@@ -23,7 +24,8 @@ const DeleteConfirmationDialog = ({ isOpen, onClose, onConfirm, fileName }) => {
 
     const handleDelete = () => {
         if (inputFileName === fileName) {
-            onConfirm();
+
+            confirmDelete();
             setInputFileName('');
             setError('');
         } else {
@@ -89,12 +91,13 @@ const DeleteConfirmationDialog = ({ isOpen, onClose, onConfirm, fileName }) => {
                     >
                         Cancel
                     </button>
-                    <button
+                    <CustomButton
+                        variant="danger"
                         onClick={handleDelete}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        disabled={isDeleting}
                     >
-                        Delete
-                    </button>
+                        {isDeleting ? <Loader /> : 'Delete'}
+                    </CustomButton>
                 </div>
             </div>
         </div>
