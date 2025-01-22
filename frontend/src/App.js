@@ -81,6 +81,7 @@ const AuthProvider = ({ children }) => {
 
 const AppContent = () => {
   const { user, loading, logout, savedPrograms, setSavedPrograms, checkAuth } = useAuth();
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -100,6 +101,8 @@ const AppContent = () => {
       console.error('Failed to load program:', error);
     }
   }, []);
+
+
 
   const handleDeleteProgram = useCallback(async (id) => {
     const program = savedPrograms.find(p => p._id === id);
