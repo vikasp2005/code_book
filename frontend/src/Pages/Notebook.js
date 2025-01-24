@@ -335,7 +335,7 @@ const NotebookApp = ({ showSidebar }) => {
     const [savedNotebooks, setSavedNotebooks] = useState([]);
     const [currentNotebookId, setCurrentNotebookId] = useState(null);
     const { user } = useAuth();
-
+    const [isResetNotebook, setIsResetNotebook] = useState(false);
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [notebookFileName, setNotebookFileName] = useState('');
     const [isFileNameExists, setIsFileNameExists] = useState(false);
@@ -366,6 +366,9 @@ const NotebookApp = ({ showSidebar }) => {
 
             setShowSaveDialog(true);
             navigate(location.state.from || '/', { replace: true });
+        }
+        if (user && location.state?.ClearEditor) {
+            setIsResetNotebook(true);
         }
     }, [user, location.state, navigate]);
 
@@ -449,8 +452,13 @@ const NotebookApp = ({ showSidebar }) => {
 
             setHasUnsavedChanges(false);
             setShowSaveDialog(false);
+            setNotebookFileName('');
             showAlert('Notebook saved successfully', 'success');
             await fetchNotebooks();
+            if (isResetNotebook) {
+                resetNotebook();
+                setIsResetNotebook(false);
+            }
         } catch (error) {
             showAlert('Failed to save notebook', 'error');
         } finally {
@@ -470,6 +478,7 @@ const NotebookApp = ({ showSidebar }) => {
     };
 
     const handleSaveNotebook = async () => {
+        setIsResetNotebook(true);
         if (!user) {
             // Store current notebook state in localStorage before redirecting
             localStorage.setItem('unsavedNotebookState', JSON.stringify({
@@ -482,7 +491,8 @@ const NotebookApp = ({ showSidebar }) => {
                 navigate('/login', {
                     state: {
                         from: location.pathname,
-                        showSaveDialog: true
+                        showSaveDialog: true,
+                        ClearEditor: true
                     }
                 });
             }, 1500);
@@ -494,6 +504,10 @@ const NotebookApp = ({ showSidebar }) => {
             setShowNewNotebookDialog(false);
             setShowSaveDialog(true);
             return;
+        }
+        if (isResetNotebook) {
+            resetNotebook();
+            setIsResetNotebook(false);
         }
 
         // Existing save logic for updating an existing notebook
