@@ -10,7 +10,6 @@ const Login = ({ onLoginSuccess }) => {
         email: '',
         password: ''
     });
-
     const location = useLocation();
     const from = location.state?.from || '/';
     const [isLoading, setIsLoading] = useState(false);

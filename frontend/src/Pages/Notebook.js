@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import Editor from "@monaco-editor/react";
-import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText } from "lucide-react";
+import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash } from "lucide-react";
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../App';
 import Alert from "../Components/Alert";
 
 const SUPPORTED_LANGUAGES = [
@@ -17,8 +20,6 @@ const generateUUID = () => {
         return v.toString(16);
     });
 };
-
-
 
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
@@ -42,6 +43,35 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
     );
 };
 
+const NotebookSidebar = ({ notebooks, onLoad, onDelete, visible }) => {
+    return (
+        <div className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${visible ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold">Saved Notebooks</h2>
+            </div>
+            <div className="overflow-y-auto h-full pb-16">
+                {notebooks.map(notebook => (
+                    <div key={notebook._id} className="flex items-center justify-between p-4 hover:bg-gray-100 border-b">
+                        <button
+                            onClick={() => onLoad(notebook._id)}
+                            className="flex items-center flex-1"
+                        >
+                            <FileText className="h-4 w-4 mr-2" />
+                            <span className="truncate">{notebook.name}</span>
+                        </button>
+                        <button
+                            onClick={() => onDelete(notebook._id)}
+                            className="p-1 hover:text-red-600 ml-2"
+                        >
+                            <Trash className="h-4 w-4" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 const NotebookCell = ({
     cell,
@@ -55,25 +85,36 @@ const NotebookCell = ({
     onChange,
     onLanguageChange,
     onNameChange,
+    onOutputChange,
     defaultLanguage,
     isDefaultLanguageEnabled
 }) => {
-    const [terminal, setTerminal] = useState('');
+    const [terminal, setTerminal] = useState(cell.output);
     const [isRunning, setIsRunning] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const terminalRef = useRef(null);
     const wsRef = useRef(null);
 
+
+
     const connectWebSocket = () => {
         const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${cell.id}`);
 
         ws.onopen = () => {
-            setTerminal('Connected to cell...\n');
+            setTerminal(prev => {
+                const newTerminal = 'Connected to cell...\n';
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
         };
 
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            setTerminal(prev => prev + message.data);
+            setTerminal(prev => {
+                const newTerminal = prev + message.data;
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
             if (message.type === 'system' && message.data.includes('Process exited')) {
                 setIsRunning(false);
             }
@@ -83,7 +124,11 @@ const NotebookCell = ({
         };
 
         ws.onclose = () => {
-            setTerminal(prev => prev + 'Connection closed...\n');
+            setTerminal(prev => {
+                const newTerminal = prev + 'Connection closed...\n';
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
             setIsRunning(false);
         };
 
@@ -95,14 +140,22 @@ const NotebookCell = ({
         if (!cell.code.trim()) return;
 
         setIsRunning(true);
-        setTerminal('Running code...\n');
+        setTerminal(prev => {
+            const newTerminal = 'Running code...\n';
+            onOutputChange(cell.id, newTerminal);
+            return newTerminal;
+        });
 
         const ws = wsRef.current || connectWebSocket();
 
         try {
             await onRun(cell.id, cell.code, cell.language);
         } catch (error) {
-            setTerminal(prev => prev + `Error: ${error.message}\n`);
+            setTerminal(prev => {
+                const newTerminal = prev + `Error: ${error.message}\n`;
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
             setIsRunning(false);
         }
     };
@@ -111,9 +164,17 @@ const NotebookCell = ({
         try {
             await onStop(cell.id);
             setIsRunning(false);
-            setTerminal(prev => prev + 'Execution stopped by user\n');
+            setTerminal(prev => {
+                const newTerminal = prev + 'Execution stopped by user\n';
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
         } catch (error) {
-            setTerminal(prev => prev + `Error stopping execution: ${error.message}\n`);
+            setTerminal(prev => {
+                const newTerminal = prev + `Error stopping execution: ${error.message}\n`;
+                onOutputChange(cell.id, newTerminal);
+                return newTerminal;
+            });
         }
     };
 
@@ -125,7 +186,11 @@ const NotebookCell = ({
                     type: 'input',
                     input: inputValue
                 }));
-                setTerminal(prev => prev + inputValue + '\n');
+                setTerminal(prev => {
+                    const newTerminal = prev + inputValue + '\n';
+                    onOutputChange(cell.id, newTerminal);
+                    return newTerminal;
+                });
                 setInputValue('');
             }
         }
@@ -134,116 +199,117 @@ const NotebookCell = ({
 
     return (
 
-
         <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2 flex-1">
-                    <input
-                        type="text"
-                        value={cell.name}
-                        onChange={(e) => onNameChange(cell.id, e.target.value)}
-                        placeholder="Cell name (optional)"
-                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 w-48"
-                    />
-                    <button
-                        onClick={handleRun}
-                        disabled={isRunning}
-                        className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                    >
-                        <Play className="h-4 w-4 mr-1" />
-                        Run
-                    </button>
-                    {isRunning && (
+            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2 flex-1">
+                        <input
+                            type="text"
+                            value={cell.name}
+                            onChange={(e) => onNameChange(cell.id, e.target.value)}
+                            placeholder="Cell name (optional)"
+                            className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 w-48"
+                        />
                         <button
-                            onClick={handleStop}
-                            className="inline-flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                            onClick={handleRun}
+                            disabled={isRunning}
+                            className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
                         >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Stop
+                            <Play className="h-4 w-4 mr-1" />
+                            Run
                         </button>
-                    )}
-                    <select
-                        value={cell.language}
-                        onChange={(e) => onLanguageChange(cell.id, e.target.value)}
-                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
-                    >
-                        {isDefaultLanguageEnabled && (
-                            <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
+                        {isRunning && (
+                            <button
+                                onClick={handleStop}
+                                className="inline-flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                                <StopCircle className="h-4 w-4 mr-1" />
+                                Stop
+                            </button>
                         )}
-                        {SUPPORTED_LANGUAGES.map(lang => (
-                            <option key={lang.id} value={lang.id}>
-                                {lang.name}
-                            </option>
-                        ))}
-                    </select>
-                    <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
+                        <select
+                            value={cell.language}
+                            onChange={(e) => onLanguageChange(cell.id, e.target.value)}
+                            className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                        >
+                            {isDefaultLanguageEnabled && (
+                                <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
+                            )}
+                            {SUPPORTED_LANGUAGES.map(lang => (
+                                <option key={lang.id} value={lang.id}>
+                                    {lang.name}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        {!isFirst && (
+                            <button
+                                onClick={() => onMoveUp(cell.id)}
+                                className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            >
+                                <ChevronUp className="h-4 w-4" />
+                            </button>
+                        )}
+                        {!isLast && (
+                            <button
+                                onClick={() => onMoveDown(cell.id)}
+                                className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            >
+                                <ChevronDown className="h-4 w-4" />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => onDelete(cell.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                    {!isFirst && (
-                        <button
-                            onClick={() => onMoveUp(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                        >
-                            <ChevronUp className="h-4 w-4" />
-                        </button>
-                    )}
-                    {!isLast && (
-                        <button
-                            onClick={() => onMoveDown(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                        >
-                            <ChevronDown className="h-4 w-4" />
-                        </button>
-                    )}
-                    <button
-                        onClick={() => onDelete(cell.id)}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+
+                <Editor
+                    height={cell.height}
+                    language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
+                    value={cell.code}
+                    onChange={(value) => onChange(cell.id, value || '')}
+                    theme="vs-dark"
+                    options={{
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        automaticLayout: true,
+                    }}
+                />
+
+                <div className="mt-2 bg-gray-900 rounded p-2">
+                    <div
+                        ref={terminalRef}
+                        className="h-32 font-mono text-sm text-white overflow-auto"
                     >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
-                </div>
-            </div>
-
-            <Editor
-                height={cell.height}
-                language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
-                value={cell.code}
-                onChange={(value) => onChange(cell.id, value || '')}
-                theme="vs-dark"
-                options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    lineNumbers: 'on',
-                    automaticLayout: true,
-                }}
-            />
-
-            <div className="mt-2 bg-gray-900 rounded p-2">
-                <div
-                    ref={terminalRef}
-                    className="h-32 font-mono text-sm text-white overflow-auto"
-                >
-                    <pre className="whitespace-pre-wrap">{terminal}</pre>
-                    {isRunning && (
-                        <div className="flex items-center">
-                            <span className="text-green-500">{'>'}</span>
-                            <input
-                                type="text"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyPress={handleInputKeyPress}
-                                className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
-                                placeholder="Type input and press Enter..."
-                            />
-                        </div>
-                    )}
+                        < pre className="whitespace-pre-wrap">{terminal} </pre>
+                        {isRunning && (
+                            <div className="flex items-center">
+                                <span className="text-green-500">{'>'}</span>
+                                <input
+                                    type="text"
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onKeyPress={handleInputKeyPress}
+                                    className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
+                                    placeholder="Type input and press Enter..."
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-const NotebookApp = () => {
+const NotebookApp = ({ showSidebar }) => {
     const [cells, setCells] = useState([
         {
             id: generateUUID(),
@@ -251,7 +317,8 @@ const NotebookApp = () => {
             language: 'python',
             height: 50,
             index: 0,
-            name: ''
+            name: '',
+            output: ''
         }
     ]);
     const [alerts, setAlerts] = useState([]);
@@ -264,6 +331,236 @@ const NotebookApp = () => {
     useEffect(() => {
         setHasUnsavedChanges(true);
     }, [cells]);
+
+    const [savedNotebooks, setSavedNotebooks] = useState([]);
+    const [currentNotebookId, setCurrentNotebookId] = useState(null);
+    const { user } = useAuth();
+
+    const [showSaveDialog, setShowSaveDialog] = useState(false);
+    const [notebookFileName, setNotebookFileName] = useState('');
+    const [isFileNameExists, setIsFileNameExists] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+
+    useEffect(() => {
+        if (user) {
+            fetchNotebooks();
+        }
+    }, [user]);
+
+
+
+    useEffect(() => {
+        if (user && location.state?.showSaveDialog) {
+            // Restore notebook state from localStorage
+            const savedNotebookState = localStorage.getItem('unsavedNotebookState');
+            if (savedNotebookState) {
+                const parsedState = JSON.parse(savedNotebookState);
+                setCells(parsedState.cells);
+                setNotebookName(parsedState.notebookName);
+                setHasUnsavedChanges(true);
+                localStorage.removeItem('unsavedNotebookState'); // Clear after restoring
+            }
+
+            setShowSaveDialog(true);
+            navigate(location.state.from || '/', { replace: true });
+        }
+    }, [user, location.state, navigate]);
+
+
+    // Add these methods to the NotebookApp component
+    const checkFileNameExists = async (name) => {
+        try {
+            if (!user) return false;
+
+            // First check against locally stored notebooks
+            const fileExists = savedNotebooks.some(notebook =>
+                notebook.name.toLowerCase() === name.toLowerCase()
+            );
+
+            if (fileExists) {
+                return true;
+            }
+
+            // Then check with server
+            const response = await axios.get(
+                `http://localhost:5000/api/notebook/checkfilename/${encodeURIComponent(name)}`,
+                { withCredentials: true }
+            );
+            return response.data.exists;
+        } catch (error) {
+            showAlert('Error checking file name', 'error');
+            return false;
+        }
+    };
+
+    const handleFileNameChange = async (e) => {
+        const value = e.target.value;
+        setNotebookFileName(value);
+        if (value.trim()) {
+            const exists = await checkFileNameExists(value);
+            setIsFileNameExists(exists);
+        } else {
+            setIsFileNameExists(false);
+        }
+    };
+
+    const handleSaveNotebookWithFileName = async () => {
+        if (!user) {
+            showAlert('Please login to save your notebook', 'info');
+            setTimeout(() => {
+                navigate('/login', {
+                    replace: true,
+                    state: {
+                        from: location.pathname,
+                        showSaveDialog: true
+                    }
+                });
+            }, 1500);
+            return;
+        }
+
+        if (!notebookFileName.trim()) {
+            showAlert('Please enter a file name', 'error');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const exists = await checkFileNameExists(notebookFileName);
+            if (exists) {
+                setIsFileNameExists(true);
+                showAlert('Notebook name already exists', 'warning');
+                return;
+            }
+
+            // Modify your existing save logic to use the new file name
+            const notebookData = {
+                name: notebookFileName, // Use the new file name
+                cells: cells
+            };
+
+            await axios.post('http://localhost:5000/api/notebook/save',
+                notebookData,
+                { withCredentials: true }
+            );
+
+            setHasUnsavedChanges(false);
+            setShowSaveDialog(false);
+            showAlert('Notebook saved successfully', 'success');
+            await fetchNotebooks();
+        } catch (error) {
+            showAlert('Failed to save notebook', 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const fetchNotebooks = async () => {
+        try {
+            const response = await axios.get('http://localhost:5000/api/notebook/list', {
+                withCredentials: true
+            });
+            setSavedNotebooks(response.data);
+        } catch (error) {
+            showAlert('Failed to fetch notebooks', 'error');
+        }
+    };
+
+    const handleSaveNotebook = async () => {
+        if (!user) {
+            // Store current notebook state in localStorage before redirecting
+            localStorage.setItem('unsavedNotebookState', JSON.stringify({
+                cells,
+                notebookName
+            }));
+
+            showAlert('Please login to save your notebook', 'info');
+            setTimeout(() => {
+                navigate('/login', {
+                    state: {
+                        from: location.pathname,
+                        showSaveDialog: true
+                    }
+                });
+            }, 1500);
+            return;
+        }
+
+        if (!currentNotebookId) {
+            // If no current notebook, show save dialog to get filename
+            setShowNewNotebookDialog(false);
+            setShowSaveDialog(true);
+            return;
+        }
+
+        // Existing save logic for updating an existing notebook
+        try {
+            const notebookData = {
+                name: notebookName,
+                cells: cells
+            };
+
+            await axios.put(`http://localhost:5000/api/notebook/update/${currentNotebookId}`,
+                notebookData,
+                { withCredentials: true }
+            );
+
+            setHasUnsavedChanges(false);
+            setShowNewNotebookDialog(false);
+            showAlert('Notebook updated successfully', 'success');
+            await fetchNotebooks();
+        } catch (error) {
+            showAlert('Failed to save notebook', 'error');
+        }
+    };
+
+    const loadNotebook = async (notebookId) => {
+        try {
+            const response = await axios.get(`http://localhost:5000/api/notebook/${notebookId}`, {
+                withCredentials: true
+            });
+            setCells(response.data.cells.map(cell => ({
+                ...cell,
+                id: cell.id || generateUUID()
+            })));
+
+            setNotebookName(response.data.name);
+            setCurrentNotebookId(notebookId);
+            setHasUnsavedChanges(false);
+        } catch (error) {
+            showAlert('Failed to load notebook', 'error');
+        }
+    };
+
+    const deleteNotebook = async (notebookId) => {
+        try {
+            await axios.delete(`http://localhost:5000/api/notebook/${notebookId}`, {
+                withCredentials: true
+            });
+
+            showAlert('Notebook deleted successfully', 'success');
+            await fetchNotebooks();
+
+            if (currentNotebookId === notebookId) {
+                resetNotebook();
+            }
+        } catch (error) {
+            showAlert('Failed to delete notebook', 'error');
+        }
+    };
+
+    const updateCellOutput = (cellId, output) => {
+        setCells(prev =>
+            prev.map(cell =>
+                cell.id === cellId
+                    ? { ...cell, output: output || cell.output || '' }
+                    : cell
+            )
+        );
+    };
 
     const createNewNotebook = () => {
         if (hasUnsavedChanges) {
@@ -280,20 +577,17 @@ const NotebookApp = () => {
             language: defaultLanguage,
             height: 50,
             index: 0,
-            name: ''
+            name: '',
+            output: ''
         }]);
+        setCurrentNotebookId(null);
         setNotebookName('Untitled Notebook');
         setHasUnsavedChanges(false);
         setShowNewNotebookDialog(false);
         showAlert('Created new notebook', 'success');
     };
 
-    const handleSaveNotebook = async () => {
-        // Here you would implement the save functionality
-        // For now, we'll just mark changes as saved
-        setHasUnsavedChanges(false);
-        showAlert('Notebook saved successfully', 'success');
-    };
+
 
     const showAlert = (message, type = 'info') => {
         const id = generateUUID();
@@ -310,7 +604,8 @@ const NotebookApp = () => {
             height: 50,
             language: defaultLanguage,
             index: cells.length,
-            name: ''
+            name: '',
+            output: '',
         };
         setCells(prev => [...prev, newCell]);
     };
@@ -440,7 +735,15 @@ const NotebookApp = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+
+        <div className="min-h-screen bg-gray-50 py-8 relative">
+            <NotebookSidebar
+                notebooks={savedNotebooks}
+                onLoad={loadNotebook}
+                onDelete={deleteNotebook}
+                visible={showSidebar}
+            />
+
             <div className="max-w-5xl mx-auto px-4">
                 <div className="fixed top-4 right-4 z-50 space-y-2">
                     {alerts.map(alert => (
@@ -522,8 +825,10 @@ const NotebookApp = () => {
 
                 {cells.map((cell, index) => (
                     <NotebookCell
+
                         key={cell.id}
                         cell={cell}
+                        onOutputChange={updateCellOutput}
                         onRun={handleRun}
                         onStop={handleStop}
                         onDelete={deleteCell}
@@ -556,10 +861,7 @@ const NotebookApp = () => {
                                 Don't Save
                             </button>
                             <button
-                                onClick={async () => {
-                                    await handleSaveNotebook();
-                                    resetNotebook();
-                                }}
+                                onClick={handleSaveNotebook}
                                 className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700"
                             >
                                 Save & Create New
@@ -567,6 +869,66 @@ const NotebookApp = () => {
                         </div>
                     </div>
                 </CustomDialog>
+                <CustomDialog
+                    isOpen={showSaveDialog}
+                    onClose={() => {
+                        setShowSaveDialog(false);
+                        setNotebookFileName('');
+                        setIsFileNameExists(false);
+                    }}
+                    title="Save Notebook"
+                >
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="notebookFileName" className="block text-sm font-medium text-gray-700 mb-1">
+                                Notebook Name
+                            </label>
+                            <input
+                                id="notebookFileName"
+                                type="text"
+                                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
+                                placeholder="Enter notebook name"
+                                value={notebookFileName}
+                                onChange={handleFileNameChange}
+                                disabled={isSaving}
+                            />
+                            {isFileNameExists && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    This notebook name already exists. Please choose a different name.
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                            <button
+                                onClick={() => {
+                                    setShowSaveDialog(false);
+                                    setNotebookFileName('');
+                                    setIsFileNameExists(false);
+                                }}
+                                disabled={isSaving}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveNotebookWithFileName}
+                                disabled={isFileNameExists || !notebookFileName.trim() || isSaving}
+                                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                                {isSaving ? (
+                                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                ) : (
+                                    <Save className="h-4 w-4 mr-1" />
+                                )}
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </CustomDialog>
+
             </div>
         </div>
     );

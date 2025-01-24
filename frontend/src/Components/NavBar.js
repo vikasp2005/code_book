@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { User, LogOut, Menu } from "lucide-react";
 
-const NavBar = ({ isAuthenticated, user, onLogout, onToggleSidebar, showSidebar }) => {
+const NavBar = ({
+    isAuthenticated,
+    user,
+    onLogout,
+    onToggleSidebar = () => { },
+    showSidebar = false
+}) => {
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const location = useLocation();
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -21,7 +28,6 @@ const NavBar = ({ isAuthenticated, user, onLogout, onToggleSidebar, showSidebar 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                     <div className="flex items-center space-x-4">
-                        {/* Added Menu button here */}
                         <button
                             onClick={onToggleSidebar}
                             className="p-2 hover:bg-gray-100 rounded"
@@ -37,7 +43,11 @@ const NavBar = ({ isAuthenticated, user, onLogout, onToggleSidebar, showSidebar 
                     <div className="flex items-center space-x-4">
                         {!isAuthenticated ? (
                             <>
-                                <Link to='/login' className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">
+                                <Link
+                                    to='/login'
+                                    state={{ from: location.pathname }}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+                                >
                                     Login
                                 </Link>
                                 <Link to='/register' className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded">

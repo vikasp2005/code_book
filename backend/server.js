@@ -10,6 +10,7 @@ import { ConfigureSession } from './Middleware/ConfigureSession.js';
 import { performCleanup, initializeCleanupTasks } from './Middleware/ClearExpired.js';
 import AuthRouter from './Routers/Auth.Router.js';
 import CodeRoute from './Routers/Code.Router.js';
+import NoteBookRouter from './Routers/NoteBook.Router.js';
 import ManageCodeRoute from './Routers/ManageCode.Router.js';
 import WebSocketConnection from './utils/WebSocketConnection.js';
 import { ALL } from 'dns';
@@ -60,6 +61,8 @@ app.use('/api/auth', AuthRouter);
 app.use('/api/code', CodeRoute);
 
 app.use('/api/managecode', ManageCodeRoute);
+
+app.use('/api/notebook', NoteBookRouter);
 
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

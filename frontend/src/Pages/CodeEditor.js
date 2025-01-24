@@ -84,7 +84,6 @@ const CodeEditor = ({ showSidebar }) => {
     const terminalRef = useRef(null);
     const clientId = useRef(generateUUID());
     const [isFileSaved, setIsFileSaved] = useState(false);
-    const [redirectAfterLogin, setRedirectAfterLogin] = useState(false);
     const [ClearEditor, setClearEditor] = useState(false);
     const [savedPrograms, setSavedPrograms] = useState([]);
     const navigate = useNavigate();
@@ -186,10 +185,6 @@ const CodeEditor = ({ showSidebar }) => {
     }, []);
 
     useEffect(() => {
-        if (user && location.state?.redirectAfterLogin) {
-            setShowSaveDialog(true); // Show save dialog
-            navigate(location.state.from || '/', { replace: true }); // Remove redirectAfterLogin from state
-        }
         if (user && location.state?.ClearEditor) {
             setClearEditor(true); // Show save dialog
             navigate(location.state.from || '/', { replace: true }); // Remove redirectAfterLogin from state
@@ -440,7 +435,6 @@ const CodeEditor = ({ showSidebar }) => {
     const handleNewFile = () => {
         if (!user && code.trim()) {
             setShowNewFileDialog(true);
-            setRedirectAfterLogin(true); // Handle login redirection
             return;
         }
 

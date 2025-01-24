@@ -104,7 +104,6 @@ const AppContent = () => {
           element={
             user ? (
               <CodeEditor
-                fetchUserFiles={checkAuth}
                 showSidebar={showSidebar} // Pass showSidebar to CodeEditor
               />
             ) : (
@@ -117,7 +116,7 @@ const AppContent = () => {
             showSidebar={showSidebar} // Pass showSidebar to CodeEditor
           />
         } />
-        <Route path="/notebook" element={<Notebook />} />
+        <Route path="/notebook" element={<Notebook showSidebar={showSidebar} />} />
       </Routes>
     </>
   );

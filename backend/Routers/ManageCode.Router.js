@@ -3,15 +3,15 @@ import express from 'express';
 import { save, update, list, getById, deleteProgram, checkProgram } from '../Controllers/Code.Controllers/save.Controller.js';
 import { isAuthenticated } from '../utils/isAuthenticated.js';
 
-const router = express.Router();
+const Router = express.Router();
 
-router.post('/save', isAuthenticated, save);
-router.put('/update/:id', isAuthenticated, update);
-router.get('/list', isAuthenticated, list);
-router.get('/:id', isAuthenticated, getById);
-router.delete('/:id', isAuthenticated, deleteProgram);
+Router.post('/save', isAuthenticated, save);
+Router.put('/update/:id', isAuthenticated, update);
+Router.get('/list', isAuthenticated, list);
+Router.get('/:id', isAuthenticated, getById);
+Router.delete('/:id', isAuthenticated, deleteProgram);
 
 // Check if filename exists for the current user
-router.get('/checkfilename/:fileName', isAuthenticated, checkProgram);
+Router.get('/checkfilename/:fileName', isAuthenticated, checkProgram);
 
-export default router;
+export default Router;
