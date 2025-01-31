@@ -70,7 +70,7 @@ const AppContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   // Add showSidebar state
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   useEffect(() => {
     if (user && location.state?.showSaveDialog) {

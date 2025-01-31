@@ -749,200 +749,202 @@ const NotebookApp = ({ showSidebar }) => {
     };
 
     return (
+        <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
 
-        <div className="min-h-screen bg-gray-50 py-8 relative">
-            <NotebookSidebar
-                notebooks={savedNotebooks}
-                onLoad={loadNotebook}
-                onDelete={deleteNotebook}
-                visible={showSidebar}
-            />
+            <div className="min-h-screen bg-gray-50 py-8 relative">
+                <NotebookSidebar
+                    notebooks={savedNotebooks}
+                    onLoad={loadNotebook}
+                    onDelete={deleteNotebook}
+                    visible={showSidebar}
+                />
 
-            <div className="max-w-5xl mx-auto px-4">
-                <div className="fixed top-4 right-4 z-50 space-y-2">
-                    {alerts.map(alert => (
-                        <Alert key={alert.id} type={alert.type} message={alert.message} />
-                    ))}
-                </div>
-
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center space-x-4">
-                        <input
-                            type="text"
-                            value={notebookName}
-                            onChange={(e) => {
-                                setNotebookName(e.target.value);
-                                setHasUnsavedChanges(true);
-                            }}
-                            className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
-                        />
-                        {hasUnsavedChanges && (
-                            <span className="text-sm text-gray-500">(Unsaved changes)</span>
-                        )}
+                <div className="max-w-5xl mx-auto px-4">
+                    <div className="fixed top-4 right-4 z-50 space-y-2">
+                        {alerts.map(alert => (
+                            <Alert key={alert.id} type={alert.type} message={alert.message} />
+                        ))}
                     </div>
-                    <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={isDefaultLanguageEnabled}
-                                    onChange={() => toggleDefaultLanguage()}
-                                    className="form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-600">Use Default Language</span>
-                            </label>
+
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center space-x-4">
+                            <input
+                                type="text"
+                                value={notebookName}
+                                onChange={(e) => {
+                                    setNotebookName(e.target.value);
+                                    setHasUnsavedChanges(true);
+                                }}
+                                className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                            />
+                            {hasUnsavedChanges && (
+                                <span className="text-sm text-gray-500">(Unsaved changes)</span>
+                            )}
                         </div>
-                        {isDefaultLanguageEnabled && (
+                        <div className="flex items-center space-x-4">
                             <div className="flex items-center space-x-2">
-                                <span className="text-sm text-gray-600">Default:</span>
-                                <select
-                                    value={defaultLanguage}
-                                    onChange={(e) => handleDefaultLanguageChange(e.target.value)}
-                                    className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
-                                >
-                                    {SUPPORTED_LANGUAGES.map(lang => (
-                                        <option key={lang.id} value={lang.id}>
-                                            {lang.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                <label className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isDefaultLanguageEnabled}
+                                        onChange={() => toggleDefaultLanguage()}
+                                        className="form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-600">Use Default Language</span>
+                                </label>
                             </div>
-                        )}
+                            {isDefaultLanguageEnabled && (
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm text-gray-600">Default:</span>
+                                    <select
+                                        value={defaultLanguage}
+                                        onChange={(e) => handleDefaultLanguageChange(e.target.value)}
+                                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {SUPPORTED_LANGUAGES.map(lang => (
+                                            <option key={lang.id} value={lang.id}>
+                                                {lang.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center space-x-2">
-                        <button
-                            onClick={createNewNotebook}
-                            className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded border hover:bg-gray-50"
-                        >
-                            <FileText className="h-4 w-4 mr-1" />
-                            New Notebook
-                        </button>
-                        <button
-                            onClick={handleSaveNotebook}
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                            <Save className="h-4 w-4 mr-1" />
-                            Save Notebook
-                        </button>
-                    </div>
-                    <button
-                        onClick={addCell}
-                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                    >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Cell
-                    </button>
-                </div>
-
-                {cells.map((cell, index) => (
-                    <NotebookCell
-
-                        key={cell.id}
-                        cell={cell}
-                        onOutputChange={updateCellOutput}
-                        onRun={handleRun}
-                        onStop={handleStop}
-                        onDelete={deleteCell}
-                        onMoveUp={() => moveCell(cell.id, 'up')}
-                        onMoveDown={() => moveCell(cell.id, 'down')}
-                        isFirst={index === 0}
-                        isLast={index === cells.length - 1}
-                        onChange={updateCellCode}
-                        onLanguageChange={updateCellLanguage}
-                        onNameChange={updateCellName}
-                        defaultLanguage={defaultLanguage}
-                        isDefaultLanguageEnabled={isDefaultLanguageEnabled}
-                    />
-                ))}
-
-                <CustomDialog
-                    isOpen={showNewNotebookDialog}
-                    onClose={() => setShowNewNotebookDialog(false)}
-                    title="Create New Notebook"
-                >
-                    <div className="space-y-4">
-                        <p className="text-gray-600">
-                            You have unsaved changes in your current notebook. Would you like to save them before creating a new notebook?
-                        </p>
-                        <div className="flex justify-end space-x-2">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center space-x-2">
                             <button
-                                onClick={resetNotebook}
-                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                onClick={createNewNotebook}
+                                className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded border hover:bg-gray-50"
                             >
-                                Don't Save
+                                <FileText className="h-4 w-4 mr-1" />
+                                New Notebook
                             </button>
                             <button
                                 onClick={handleSaveNotebook}
-                                className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700"
-                            >
-                                Save & Create New
-                            </button>
-                        </div>
-                    </div>
-                </CustomDialog>
-                <CustomDialog
-                    isOpen={showSaveDialog}
-                    onClose={() => {
-                        setShowSaveDialog(false);
-                        setNotebookFileName('');
-                        setIsFileNameExists(false);
-                    }}
-                    title="Save Notebook"
-                >
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="notebookFileName" className="block text-sm font-medium text-gray-700 mb-1">
-                                Notebook Name
-                            </label>
-                            <input
-                                id="notebookFileName"
-                                type="text"
-                                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
-                                placeholder="Enter notebook name"
-                                value={notebookFileName}
-                                onChange={handleFileNameChange}
-                                disabled={isSaving}
-                            />
-                            {isFileNameExists && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    This notebook name already exists. Please choose a different name.
-                                </p>
-                            )}
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                            <button
-                                onClick={() => {
-                                    setShowSaveDialog(false);
-                                    setNotebookFileName('');
-                                    setIsFileNameExists(false);
-                                }}
-                                disabled={isSaving}
-                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveNotebookWithFileName}
-                                disabled={isFileNameExists || !notebookFileName.trim() || isSaving}
                                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
-                                {isSaving ? (
-                                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                    </svg>
-                                ) : (
-                                    <Save className="h-4 w-4 mr-1" />
-                                )}
-                                Save
+                                <Save className="h-4 w-4 mr-1" />
+                                Save Notebook
                             </button>
                         </div>
+                        <button
+                            onClick={addCell}
+                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Cell
+                        </button>
                     </div>
-                </CustomDialog>
 
+                    {cells.map((cell, index) => (
+                        <NotebookCell
+
+                            key={cell.id}
+                            cell={cell}
+                            onOutputChange={updateCellOutput}
+                            onRun={handleRun}
+                            onStop={handleStop}
+                            onDelete={deleteCell}
+                            onMoveUp={() => moveCell(cell.id, 'up')}
+                            onMoveDown={() => moveCell(cell.id, 'down')}
+                            isFirst={index === 0}
+                            isLast={index === cells.length - 1}
+                            onChange={updateCellCode}
+                            onLanguageChange={updateCellLanguage}
+                            onNameChange={updateCellName}
+                            defaultLanguage={defaultLanguage}
+                            isDefaultLanguageEnabled={isDefaultLanguageEnabled}
+                        />
+                    ))}
+
+                    <CustomDialog
+                        isOpen={showNewNotebookDialog}
+                        onClose={() => setShowNewNotebookDialog(false)}
+                        title="Create New Notebook"
+                    >
+                        <div className="space-y-4">
+                            <p className="text-gray-600">
+                                You have unsaved changes in your current notebook. Would you like to save them before creating a new notebook?
+                            </p>
+                            <div className="flex justify-end space-x-2">
+                                <button
+                                    onClick={resetNotebook}
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                >
+                                    Don't Save
+                                </button>
+                                <button
+                                    onClick={handleSaveNotebook}
+                                    className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700"
+                                >
+                                    Save & Create New
+                                </button>
+                            </div>
+                        </div>
+                    </CustomDialog>
+                    <CustomDialog
+                        isOpen={showSaveDialog}
+                        onClose={() => {
+                            setShowSaveDialog(false);
+                            setNotebookFileName('');
+                            setIsFileNameExists(false);
+                        }}
+                        title="Save Notebook"
+                    >
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="notebookFileName" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Notebook Name
+                                </label>
+                                <input
+                                    id="notebookFileName"
+                                    type="text"
+                                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
+                                    placeholder="Enter notebook name"
+                                    value={notebookFileName}
+                                    onChange={handleFileNameChange}
+                                    disabled={isSaving}
+                                />
+                                {isFileNameExists && (
+                                    <p className="mt-1 text-sm text-red-600">
+                                        This notebook name already exists. Please choose a different name.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                                <button
+                                    onClick={() => {
+                                        setShowSaveDialog(false);
+                                        setNotebookFileName('');
+                                        setIsFileNameExists(false);
+                                    }}
+                                    disabled={isSaving}
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveNotebookWithFileName}
+                                    disabled={isFileNameExists || !notebookFileName.trim() || isSaving}
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                    {isSaving ? (
+                                        <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                    ) : (
+                                        <Save className="h-4 w-4 mr-1" />
+                                    )}
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </CustomDialog>
+
+                </div>
             </div>
         </div>
     );
