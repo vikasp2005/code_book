@@ -12,9 +12,12 @@ const ALLOWED_LANGUAGES = Object.keys(LANGUAGE_CONFIGS);
 
 
 export const executeCode = async (req, res) => {
+
     const { code, language } = req.body;
     const clientId = req.headers['client-id'];
+    const cellId = req.headers['cell-id'] || req.headers['client-id'];
     const ws = wsClients.get(clientId);
+
 
     if (!ws) {
         return res.status(400).json({
@@ -26,7 +29,7 @@ export const executeCode = async (req, res) => {
         return res.status(400).json({ error: 'Unsupported language' });
     }
 
-    const tempDir = getTempDir(clientId);
+    const tempDir = getTempDir(cellId);
     await fs.mkdir(tempDir, { recursive: true });
     const fileName = `temp_${Date.now()}`;
     let processInstance;
@@ -114,10 +117,11 @@ export const executeCode = async (req, res) => {
             }
         }
 
-        runningProcesses.set(clientId, processInstance);
+        runningProcesses.set(cellId, processInstance);
 
         processInstance.stdout.on('data', (data) => {
             ws.send(JSON.stringify({
+                clientId: cellId,
                 type: 'output',
                 data: data.toString()
             }));
@@ -125,15 +129,17 @@ export const executeCode = async (req, res) => {
 
         processInstance.stderr.on('data', (data) => {
             ws.send(JSON.stringify({
+                clientId: cellId,
                 type: 'error',
                 data: data.toString()
             }));
         });
 
         processInstance.on('close', async (code) => {
-            runningProcesses.delete(clientId);
+            runningProcesses.delete(cellId);
             await cleanupResources(tempDir);
             ws.send(JSON.stringify({
+                clientId: cellId,
                 type: 'system',
                 data: `\nProcess exited with code ${code}\n`
             }));
@@ -143,6 +149,7 @@ export const executeCode = async (req, res) => {
     } catch (error) {
         console.error('Execution error:', error);
         ws.send(JSON.stringify({
+            clientId: cellId,
             type: 'error',
             data: error.message
         }));

@@ -1,6 +1,4 @@
 node_modules
 frontend/node_modules
-backend/.env
-.vscode/settings.json
-.vscode/tasks.json
-.vscode
+.env
+backend/temp

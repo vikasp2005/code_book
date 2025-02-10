@@ -13,9 +13,10 @@ import CodeRoute from './Routers/Code.Router.js';
 import NoteBookRouter from './Routers/NoteBook.Router.js';
 import ManageCodeRoute from './Routers/ManageCode.Router.js';
 import WebSocketConnection from './utils/WebSocketConnection.js';
+import { runningProcesses, wsClients } from './utils/ExecuteCode.js'
 import { ALL } from 'dns';
 
-dotenv.config();
+dotenv.config({ path: '../.env' });
 
 const app = express();
 

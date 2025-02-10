@@ -85,224 +85,142 @@ const NotebookCell = ({
     onChange,
     onLanguageChange,
     onNameChange,
-    onOutputChange,
     defaultLanguage,
-    isDefaultLanguageEnabled
+    isDefaultLanguageEnabled,
+    sendWebSocketMessage,
+    isRunning,
 }) => {
-    const [terminal, setTerminal] = useState(cell.output);
-    const [isRunning, setIsRunning] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const terminalRef = useRef(null);
-    const wsRef = useRef(null);
-
-
-
-    const connectWebSocket = () => {
-        const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${cell.id}`);
-
-        ws.onopen = () => {
-            setTerminal(prev => {
-                const newTerminal = 'Connected to cell...\n';
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
-        };
-
-        ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            setTerminal(prev => {
-                const newTerminal = prev + message.data;
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
-            if (message.type === 'system' && message.data.includes('Process exited')) {
-                setIsRunning(false);
-            }
-            if (terminalRef.current) {
-                terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-            }
-        };
-
-        ws.onclose = () => {
-            setTerminal(prev => {
-                const newTerminal = prev + 'Connection closed...\n';
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
-            setIsRunning(false);
-        };
-
-        wsRef.current = ws;
-        return ws;
-    };
 
     const handleRun = async () => {
         if (!cell.code.trim()) return;
-
-        setIsRunning(true);
-        setTerminal(prev => {
-            const newTerminal = 'Running code...\n';
-            onOutputChange(cell.id, newTerminal);
-            return newTerminal;
-        });
-
-        const ws = wsRef.current || connectWebSocket();
-
         try {
             await onRun(cell.id, cell.code, cell.language);
         } catch (error) {
-            setTerminal(prev => {
-                const newTerminal = prev + `Error: ${error.message}\n`;
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
-            setIsRunning(false);
+            console.error('Error running code:', error);
         }
     };
 
     const handleStop = async () => {
         try {
             await onStop(cell.id);
-            setIsRunning(false);
-            setTerminal(prev => {
-                const newTerminal = prev + 'Execution stopped by user\n';
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
         } catch (error) {
-            setTerminal(prev => {
-                const newTerminal = prev + `Error stopping execution: ${error.message}\n`;
-                onOutputChange(cell.id, newTerminal);
-                return newTerminal;
-            });
+            console.error('Error stopping code:', error);
         }
     };
 
     const handleInputKeyPress = (e) => {
         if (e.key === 'Enter' && isRunning) {
             e.preventDefault();
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: 'input',
-                    input: inputValue
-                }));
-                setTerminal(prev => {
-                    const newTerminal = prev + inputValue + '\n';
-                    onOutputChange(cell.id, newTerminal);
-                    return newTerminal;
-                });
-                setInputValue('');
-            }
+            sendWebSocketMessage(cell.id, inputValue);
+            setInputValue('');
         }
     };
 
-
     return (
-
         <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2 flex-1">
-                        <input
-                            type="text"
-                            value={cell.name}
-                            onChange={(e) => onNameChange(cell.id, e.target.value)}
-                            placeholder="Cell name (optional)"
-                            className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 w-48"
-                        />
-                        <button
-                            onClick={handleRun}
-                            disabled={isRunning}
-                            className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                        >
-                            <Play className="h-4 w-4 mr-1" />
-                            Run
-                        </button>
-                        {isRunning && (
-                            <button
-                                onClick={handleStop}
-                                className="inline-flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                            >
-                                <StopCircle className="h-4 w-4 mr-1" />
-                                Stop
-                            </button>
-                        )}
-                        <select
-                            value={cell.language}
-                            onChange={(e) => onLanguageChange(cell.id, e.target.value)}
-                            className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
-                        >
-                            {isDefaultLanguageEnabled && (
-                                <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
-                            )}
-                            {SUPPORTED_LANGUAGES.map(lang => (
-                                <option key={lang.id} value={lang.id}>
-                                    {lang.name}
-                                </option>
-                            ))}
-                        </select>
-                        <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        {!isFirst && (
-                            <button
-                                onClick={() => onMoveUp(cell.id)}
-                                className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                            >
-                                <ChevronUp className="h-4 w-4" />
-                            </button>
-                        )}
-                        {!isLast && (
-                            <button
-                                onClick={() => onMoveDown(cell.id)}
-                                className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                            >
-                                <ChevronDown className="h-4 w-4" />
-                            </button>
-                        )}
-                        <button
-                            onClick={() => onDelete(cell.id)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <Editor
-                    height={cell.height}
-                    language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
-                    value={cell.code}
-                    onChange={(value) => onChange(cell.id, value || '')}
-                    theme="vs-dark"
-                    options={{
-                        minimap: { enabled: false },
-                        fontSize: 14,
-                        lineNumbers: 'on',
-                        automaticLayout: true,
-                    }}
-                />
-
-                <div className="mt-2 bg-gray-900 rounded p-2">
-                    <div
-                        ref={terminalRef}
-                        className="h-32 font-mono text-sm text-white overflow-auto"
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2 flex-1">
+                    <input
+                        type="text"
+                        value={cell.name}
+                        onChange={(e) => onNameChange(cell.id, e.target.value)}
+                        placeholder="Cell name (optional)"
+                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 w-48"
+                    />
+                    <button
+                        onClick={handleRun}
+                        disabled={isRunning}
+                        className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
                     >
-                        < pre className="whitespace-pre-wrap">{terminal} </pre>
-                        {isRunning && (
-                            <div className="flex items-center">
-                                <span className="text-green-500">{'>'}</span>
-                                <input
-                                    type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyPress={handleInputKeyPress}
-                                    className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
-                                    placeholder="Type input and press Enter..."
-                                />
-                            </div>
+                        <Play className="h-4 w-4 mr-1" />
+                        Run
+                    </button>
+                    {isRunning && (
+                        <button
+                            onClick={handleStop}
+                            className="inline-flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                            <StopCircle className="h-4 w-4 mr-1" />
+                            Stop
+                        </button>
+                    )}
+                    <select
+                        value={cell.language}
+                        onChange={(e) => onLanguageChange(cell.id, e.target.value)}
+                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                    >
+                        {isDefaultLanguageEnabled && (
+                            <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
                         )}
-                    </div>
+                        {SUPPORTED_LANGUAGES.map(lang => (
+                            <option key={lang.id} value={lang.id}>
+                                {lang.name}
+                            </option>
+                        ))}
+                    </select>
+                    <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    {!isFirst && (
+                        <button
+                            onClick={() => onMoveUp(cell.id)}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                        >
+                            <ChevronUp className="h-4 w-4" />
+                        </button>
+                    )}
+                    {!isLast && (
+                        <button
+                            onClick={() => onMoveDown(cell.id)}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                        >
+                            <ChevronDown className="h-4 w-4" />
+                        </button>
+                    )}
+                    <button
+                        onClick={() => onDelete(cell.id)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            <Editor
+                height={cell.height}
+                language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
+                value={cell.code}
+                onChange={(value) => onChange(cell.id, value || '')}
+                theme="vs-dark"
+                options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    automaticLayout: true,
+                }}
+            />
+
+            <div className="mt-2 bg-gray-900 rounded p-2">
+                <div
+                    ref={terminalRef}
+                    className="h-32 font-mono text-sm text-white overflow-auto"
+                >
+                    <pre className="whitespace-pre-wrap">{cell.output}</pre>
+                    {isRunning && (
+                        <div className="flex items-center">
+                            <span className="text-green-500">{'>'}</span>
+                            <input
+                                type="text"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyPress={handleInputKeyPress}
+                                className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
+                                placeholder="Type input and press Enter..."
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -327,11 +245,6 @@ const NotebookApp = ({ showSidebar }) => {
     const [showNewNotebookDialog, setShowNewNotebookDialog] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [notebookName, setNotebookName] = useState('Untitled Notebook');
-
-    useEffect(() => {
-        setHasUnsavedChanges(true);
-    }, [cells]);
-
     const [savedNotebooks, setSavedNotebooks] = useState([]);
     const [currentNotebookId, setCurrentNotebookId] = useState(null);
     const { user } = useAuth();
@@ -342,6 +255,147 @@ const NotebookApp = ({ showSidebar }) => {
     const [isSaving, setIsSaving] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
+    const wsRef = useRef(null);
+    const clientId = useRef(generateUUID());
+    const [runningCells, setRunningCells] = useState({});
+
+
+
+    useEffect(() => {
+        const connectWebSocket = () => {
+            const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${clientId.current}`);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                console.log(message)
+                const cellId = message.clientId;
+                const data = message.data;
+                const type = message.type;
+                setCells(prevCells =>
+                    prevCells.map(cell =>
+                        cell.id === cellId
+                            ? { ...cell, output: cell.output + data }
+                            : cell
+                    )
+                );
+
+                if (type === 'system' && data.includes('Process exited')) {
+                    setRunningCells(prev => ({ ...prev, [cellId]: false }));
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected. Reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                ws.close();
+            };
+
+            wsRef.current = ws;
+        };
+
+        connectWebSocket();
+
+        return () => {
+            if (wsRef.current) {
+                wsRef.current.close();
+            }
+        };
+    }, []);
+
+    const sendWebSocketMessage = (cellId, inputValue) => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'input',
+                input: inputValue,
+                clientId: cellId
+            }));
+            setCells(prevCells =>
+                prevCells.map(cell =>
+                    cell.id === cellId
+                        ? { ...cell, output: cell.output + inputValue + '\n' }
+                        : cell
+                )
+            );
+        }
+
+    }
+
+
+
+
+    const handleRun = async (cellId, code, language) => {
+        try {
+            setCells(prevCells =>
+                prevCells.map(cell =>
+                    cell.id === cellId
+                        ? { ...cell, output: 'Running code...\n' }
+                        : cell
+                )
+            );
+            setRunningCells(prev => ({ ...prev, [cellId]: true }));
+
+            const response = await fetch('http://localhost:5000/api/code/execute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Client-ID': clientId.current,
+                    'Cell-Id': cellId
+                },
+                body: JSON.stringify({
+                    code,
+                    language: language === defaultLanguage ? defaultLanguage : language
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to execute code');
+            }
+
+            showAlert(`Running ${language} code`, 'success');
+        } catch (error) {
+            setRunningCells(prev => ({ ...prev, [cellId]: false }));
+            showAlert(error.message, 'error');
+            throw error;
+        }
+    };
+
+    const handleStop = async (cellId) => {
+        try {
+            const response = await fetch('http://localhost:5000/api/code/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Client-ID': clientId.current,
+                    'Cell-Id': cellId
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to stop execution');
+            }
+            setRunningCells(prev => ({ ...prev, [cellId]: false }));
+
+            showAlert('Execution stopped', 'success');
+        } catch (error) {
+            setRunningCells(prev => ({ ...prev, [cellId]: false }));
+
+            showAlert(error.message, 'error');
+            throw error;
+        }
+    };
+
+    useEffect(() => {
+        setHasUnsavedChanges(true);
+    }, [cells]);
+
 
 
     useEffect(() => {
@@ -566,15 +620,7 @@ const NotebookApp = ({ showSidebar }) => {
         }
     };
 
-    const updateCellOutput = (cellId, output) => {
-        setCells(prev =>
-            prev.map(cell =>
-                cell.id === cellId
-                    ? { ...cell, output: output || cell.output || '' }
-                    : cell
-            )
-        );
-    };
+
 
     const createNewNotebook = () => {
         if (hasUnsavedChanges) {
@@ -649,51 +695,9 @@ const NotebookApp = ({ showSidebar }) => {
         });
     };
 
-    const handleRun = async (id, code, language) => {
-        try {
-            const response = await fetch('http://localhost:5000/api/code/execute', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Client-ID': id
-                },
-                body: JSON.stringify({
-                    code,
-                    language: language === defaultLanguage ? defaultLanguage : language
-                }),
-            });
 
-            if (!response.ok) {
-                throw new Error('Failed to execute code');
-            }
 
-            showAlert(`Running ${language} code`, 'success');
-        } catch (error) {
-            showAlert(error.message, 'error');
-            throw error;
-        }
-    };
 
-    const handleStop = async (id) => {
-        try {
-            const response = await fetch('http://localhost:5000/api/code/stop', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Client-ID': id
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to stop execution');
-            }
-
-            showAlert('Execution stopped', 'success');
-        } catch (error) {
-            showAlert(error.message, 'error');
-            throw error;
-        }
-    };
 
     const updateCellCode = (id, newCode) => {
         const lines = newCode.split('\n').length;
@@ -840,10 +844,7 @@ const NotebookApp = ({ showSidebar }) => {
 
                     {cells.map((cell, index) => (
                         <NotebookCell
-
-                            key={cell.id}
                             cell={cell}
-                            onOutputChange={updateCellOutput}
                             onRun={handleRun}
                             onStop={handleStop}
                             onDelete={deleteCell}
@@ -856,6 +857,8 @@ const NotebookApp = ({ showSidebar }) => {
                             onNameChange={updateCellName}
                             defaultLanguage={defaultLanguage}
                             isDefaultLanguageEnabled={isDefaultLanguageEnabled}
+                            sendWebSocketMessage={sendWebSocketMessage}
+                            isRunning={runningCells[cell.id]}
                         />
                     ))}
 

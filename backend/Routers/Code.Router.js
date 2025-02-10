@@ -11,7 +11,8 @@ Router.post('/execute', executeCode);
 
 Router.post('/stop', (req, res) => {
     const clientId = req.headers['client-id'];
-    const process = runningProcesses.get(clientId);
+    const cellId = req.headers['cell-id'] || req.headers['client-id'];
+    const process = runningProcesses.get(cellId);
     const ws = wsClients.get(clientId);
 
     if (!process) {
@@ -20,7 +21,7 @@ Router.post('/stop', (req, res) => {
 
     try {
         process.kill();
-        runningProcesses.delete(clientId);
+        runningProcesses.delete(cellId);
 
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({

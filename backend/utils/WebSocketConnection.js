@@ -24,7 +24,8 @@ const WebSocketConnection = (wss) => {
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'input') {
-                    const process = runningProcesses.get(clientId);
+                    const cellId = data.clientId || clientId
+                    const process = runningProcesses.get(cellId);
                     if (process && process.stdin) {
                         process.stdin.write(data.input + '\n');
                     }
