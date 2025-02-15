@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Editor from "@monaco-editor/react";
+import ConnectionStatus from '../Components/ConnectionStatus';
 import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash } from "lucide-react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
@@ -89,6 +90,8 @@ const NotebookCell = ({
     isDefaultLanguageEnabled,
     sendWebSocketMessage,
     isRunning,
+    isConnected,
+    handleRefreshConnection
 }) => {
     const [inputValue, setInputValue] = useState('');
     const terminalRef = useRef(null);
@@ -162,6 +165,11 @@ const NotebookCell = ({
                     </select>
                     <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
                 </div>
+                <ConnectionStatus
+                    isConnected={isConnected}
+                    onRefresh={handleRefreshConnection}
+                    isRefreshing={!isConnected}
+                />
                 <div className="flex items-center space-x-2">
                     {!isFirst && (
                         <button
@@ -247,6 +255,7 @@ const NotebookApp = ({ showSidebar }) => {
     const [notebookName, setNotebookName] = useState('Untitled Notebook');
     const [savedNotebooks, setSavedNotebooks] = useState([]);
     const [currentNotebookId, setCurrentNotebookId] = useState(null);
+    const [isConnected, setIsConnected] = useState(false);
     const { user } = useAuth();
     const [isResetNotebook, setIsResetNotebook] = useState(false);
     const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -266,6 +275,7 @@ const NotebookApp = ({ showSidebar }) => {
             const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${clientId.current}`);
 
             ws.onopen = () => {
+                setIsConnected(true);
                 console.log('WebSocket connected');
             };
 
@@ -290,11 +300,15 @@ const NotebookApp = ({ showSidebar }) => {
 
             ws.onclose = () => {
                 console.log('WebSocket disconnected. Reconnecting...');
+                setIsConnected(false);
+
                 setTimeout(connectWebSocket, 3000);
             };
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                setIsConnected(false);
+
                 ws.close();
             };
 
@@ -309,6 +323,13 @@ const NotebookApp = ({ showSidebar }) => {
             }
         };
     }, []);
+
+    const handleRefreshConnection = () => {
+        setIsConnected(true);
+        if (wsRef.current) {
+            wsRef.current.close();
+        }
+    };
 
     const sendWebSocketMessage = (cellId, inputValue) => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -844,6 +865,7 @@ const NotebookApp = ({ showSidebar }) => {
 
                     {cells.map((cell, index) => (
                         <NotebookCell
+                            key={cell.id}
                             cell={cell}
                             onRun={handleRun}
                             onStop={handleStop}
@@ -859,6 +881,8 @@ const NotebookApp = ({ showSidebar }) => {
                             isDefaultLanguageEnabled={isDefaultLanguageEnabled}
                             sendWebSocketMessage={sendWebSocketMessage}
                             isRunning={runningCells[cell.id]}
+                            isConnected={isConnected}
+                            handleRefreshConnection={handleRefreshConnection}
                         />
                     ))}
 
