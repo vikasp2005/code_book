@@ -6,6 +6,7 @@ import { Play, StopCircle, Square, Save, X, Plus, Trash, FolderOpen } from "luci
 import DeleteConfirmationDialog from '../Components/DeleteConfirmationDialog';
 import Alert from '../Components/Alert';
 import { useAuth } from '../App';
+import ConnectionStatus from '../Components/ConnectionStatus';
 import axios from 'axios';
 
 // Utility function for generating UUIDs remains the same
@@ -129,6 +130,7 @@ const CodeEditor = ({ showSidebar }) => {
     // WebSocket connection effect remains the same
     useEffect(() => {
         const connectWebSocket = () => {
+            console.log(clientId.current);
             const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${clientId.current}`);
 
             ws.onopen = () => {
@@ -190,6 +192,13 @@ const CodeEditor = ({ showSidebar }) => {
             navigate(location.state.from || '/', { replace: true }); // Remove redirectAfterLogin from state
         }
     }, [user, location.state, navigate]);
+
+    const handleRefreshConnection = () => {
+        setIsConnected(false);
+        if (wsRef.current) {
+            wsRef.current.close();
+        }
+    };
 
 
     const checkFileExists = async (fileId) => {
@@ -701,12 +710,11 @@ const CodeEditor = ({ showSidebar }) => {
                                     <option value="cpp">C++</option>
                                     <option value="java">Java</option>
                                 </select>
-                                <div className="flex items-center space-x-2">
-                                    <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                                    <span className="text-sm text-gray-600">
-                                        {isConnected ? 'Connected' : 'Reconnecting...'}
-                                    </span>
-                                </div>
+                                <ConnectionStatus
+                                    isConnected={isConnected}
+                                    onRefresh={handleRefreshConnection}
+                                    isRefreshing={!isConnected}
+                                />
                             </div>
                         </div>
 

@@ -5,7 +5,7 @@ const WebSocketConnection = (wss) => {
 
     // WebSocket connection handler
     wss.on('connection', (ws, req) => {
-        const clientId = new URL(req.url, 'http://localhost').searchParams.get('clientId');
+        const clientId = new URL(req.url, `http://${req.headers.host}`).searchParams.get('clientId');
 
         if (!clientId) {
             ws.close();
@@ -14,6 +14,11 @@ const WebSocketConnection = (wss) => {
 
         wsClients.set(clientId, ws);
         console.log(`Client connected with ID: ${clientId}`);
+
+        ws.isAlive = true;
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
 
         ws.send(JSON.stringify({
             type: 'system',
@@ -24,7 +29,7 @@ const WebSocketConnection = (wss) => {
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'input') {
-                    const cellId = data.clientId || clientId
+                    const cellId = data.clientId || clientId;
                     const process = runningProcesses.get(cellId);
                     if (process && process.stdin) {
                         process.stdin.write(data.input + '\n');
@@ -45,6 +50,19 @@ const WebSocketConnection = (wss) => {
             wsClients.delete(clientId);
         });
     });
+
+    // Set up periodic pings to remove dead connections
+    const interval = setInterval(() => {
+        wss.clients.forEach((ws) => {
+            if (!ws.isAlive) {
+                console.log('Terminating inactive connection');
+                return ws.terminate();
+            }
+            ws.isAlive = false;
+            ws.ping();
+        });
+    }, 30000); // Run every 30 seconds
+
 }
 
 export default WebSocketConnection;

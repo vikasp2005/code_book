@@ -45,7 +45,8 @@ ConfigureSession(app);
 initializeCleanupTasks();
 
 const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: 1024 * 1024 });
 
 WebSocketConnection(wss);
 
