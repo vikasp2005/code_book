@@ -13,6 +13,7 @@ import CodeRoute from './Routers/Code.Router.js';
 import NoteBookRouter from './Routers/NoteBook.Router.js';
 import ManageCodeRoute from './Routers/ManageCode.Router.js';
 import WebSocketConnection from './utils/WebSocketConnection.js';
+import { initializeEmailConfig } from './Middleware/EmailConfiguration.js';
 import { runningProcesses, wsClients } from './utils/ExecuteCode.js'
 import { ALL } from 'dns';
 
@@ -43,6 +44,7 @@ app.use(cookieParser());
 connectDB();
 ConfigureSession(app);
 initializeCleanupTasks();
+initializeEmailConfig();
 
 const httpServer = createServer(app);
 const wss = new WebSocketServer({ server: httpServer, path: '/ws' });

@@ -1,6 +1,5 @@
 import express from 'express';
 
-import { registerValidation } from '../utils/Data_Validators.js';
 import { isAuthenticated } from '../utils/isAuthenticated.js';
 import { User } from '../Models/User.Model.js';
 import { Register } from '../Controllers/Auth.Controllers/Register.Controller.js';
@@ -14,13 +13,13 @@ import { Logout } from '../Controllers/Auth.Controllers/Logout.Controller.js';
 
 const Router = express.Router();
 
-Router.post('/register', registerValidation, Register);
+Router.post('/register', Register);
 
 Router.post('/verify-otp', Verify_Email);
 
 Router.post('/resend-otp', Resend_OTP);
 
-Router.post('/login', registerValidation, Login);
+Router.post('/login', Login);
 
 Router.post('/forgot-password', Forgot_password);
 

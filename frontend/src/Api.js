@@ -10,7 +10,6 @@ export const login = async (data) => {
         const response = await API.post('/auth/login', data, { withCredentials: true });
         return response.data;
     } catch (error) {
-        console.log(error);
         throw error.response?.data?.message || 'An error occurred';
     }
 };
@@ -21,7 +20,7 @@ export const registerUser = async (data) => {
         return response.data;
     } catch (error) {
         console.log(error);
-        throw error.response?.data?.message || 'An error occurred';
+        throw error || 'An error occurred';
     }
 };
 
@@ -32,7 +31,7 @@ export const verifyEmail = async (data) => {
     }
     catch (error) {
         console.log(error);
-        throw error.response?.data?.message || 'An error occurred';
+        throw error.response?.data?.message;
     }
 }
 

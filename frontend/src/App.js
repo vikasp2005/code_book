@@ -9,13 +9,16 @@ import Notebook from './Pages/Notebook';
 import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
 import VerifyEmail from './Pages/VerifyEmail';
+import Alert from './Components/Alert'; // Import the Alert component
+import { GenerateUUID } from './Components/GenerateUUID'; // Import the generateUUID utility
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState([]); // Centralized alert system
+  const [isLoading, setIsLoading] = useState(false); // Centralized loader
   const navigate = useNavigate();
 
   const checkAuth = useCallback(async () => {
@@ -27,13 +30,13 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       setUser(null);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]); // Added checkAuth to dependency array
+  }, [checkAuth]);
 
   const login = async (userData) => {
     setUser(userData);
@@ -42,9 +45,7 @@ const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/auth/logout', {},
-        { withCredentials: true }
-      );
+      await axios.post('http://localhost:5000/api/auth/logout', {}, { withCredentials: true });
       setUser(null);
       navigate('/login');
     } catch (error) {
@@ -52,13 +53,25 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  const showAlert = (type, message) => {
+    const id = GenerateUUID();
+    setAlerts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setAlerts(prev => prev.filter(alert => alert.id !== id));
+    }, 3000);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
-      loading,
+      isLoading,
+      alerts,
       login,
       logout,
-      checkAuth
+      checkAuth,
+      showAlert,
+      setAlerts,  // Pass isLoading to all components
+      setIsLoading, // Pass setIsLoading to all components
     }}>
       {children}
     </AuthContext.Provider>
@@ -66,10 +79,9 @@ const AuthProvider = ({ children }) => {
 };
 
 const AppContent = () => {
-  const { user, loading, logout, checkAuth } = useAuth();
+  const { user, isLoading, logout, checkAuth, alerts, setAlerts } = useAuth(); // Destructure alerts
   const location = useLocation();
   const navigate = useNavigate();
-  // Add showSidebar state
   const [showSidebar, setShowSidebar] = useState(false);
 
   useEffect(() => {
@@ -79,12 +91,29 @@ const AppContent = () => {
     }
   }, [user, location, navigate]);
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+
 
   return (
     <>
+      {/* Centralized Alert System */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {alerts.map(alert => (
+          <Alert
+            key={alert.id}
+            message={alert.message}
+            type={alert.type}
+            onClose={() => setAlerts(prev => prev.filter(a => a.id !== alert.id))}
+          />
+        ))}
+      </div>
+
+      {/* Centralized Loader */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
+        </div>
+      )}
+
       <NavBar
         isAuthenticated={!!user}
         user={user}
@@ -98,13 +127,13 @@ const AppContent = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-otp" element={<VerifyEmail />} />
         <Route
           path="/dashboard"
           element={
             user ? (
               <CodeEditor
-                showSidebar={showSidebar} // Pass showSidebar to CodeEditor
+                showSidebar={showSidebar}
               />
             ) : (
               <Navigate to="/login" state={{ from: '/dashboard' }} />
@@ -113,7 +142,7 @@ const AppContent = () => {
         />
         <Route path="/" element={
           <CodeEditor
-            showSidebar={showSidebar} // Pass showSidebar to CodeEditor
+            showSidebar={showSidebar}
           />
         } />
         <Route path="/notebook" element={<Notebook showSidebar={showSidebar} />} />

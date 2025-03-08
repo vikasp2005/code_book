@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Check, X } from 'lucide-react';
 
-const PasswordValidator = ({ password, className = '' }) => {
+const PasswordValidator = ({ password, className = '', onValidation }) => {
     const checks = {
         length: password.length >= 8 && password.length <= 16,
         uppercase: /[A-Z]/.test(password),
@@ -17,6 +17,13 @@ const PasswordValidator = ({ password, className = '' }) => {
         { key: 'number', label: 'One number' },
         { key: 'specialChar', label: 'One special character' }
     ];
+
+    // Call the onValidation callback only when password or onValidation changes
+    useEffect(() => {
+        if (onValidation) {
+            onValidation(checks);
+        }
+    }, [password, onValidation]);
 
     return (
         <div className={`space-y-2 ${className}`}>

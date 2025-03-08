@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { Check, X, Eye, EyeOff } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import PasswordValidator from '../Components/PasswordValidator';
 import { registerUser } from '../Api';
-
-
+import { AuthContext } from '../App';
 
 const Register = () => {
     const navigate = useNavigate();
+    const { showAlert, setIsLoading } = useContext(AuthContext);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -16,9 +16,13 @@ const Register = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formErrors, setFormErrors] = useState({});
-
-    const [isLoading, setIsLoading] = useState(false);
-    const [statusMessage, setStatusMessage] = useState({ type: '', message: '' });
+    const [passwordValidation, setPasswordValidation] = useState({
+        length: false,
+        uppercase: false,
+        lowercase: false,
+        number: false,
+        specialChar: false
+    });
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -27,8 +31,6 @@ const Register = () => {
             [name]: value
         }));
 
-
-
         // Clear errors when typing
         setFormErrors(prev => ({
             ...prev,
@@ -36,7 +38,10 @@ const Register = () => {
         }));
     };
 
-
+    // Memoize the handlePasswordValidation function to prevent unnecessary re-renders
+    const handlePasswordValidation = useCallback((checks) => {
+        setPasswordValidation(checks);
+    }, []);
 
     const validateForm = () => {
         const errors = {};
@@ -49,6 +54,8 @@ const Register = () => {
 
         if (!formData.password) {
             errors.password = 'Password is required';
+        } else if (!Object.values(passwordValidation).every(check => check)) {
+            errors.password = 'Password does not meet the requirements';
         }
 
         if (!formData.confirmPassword) {
@@ -66,19 +73,19 @@ const Register = () => {
         if (validateForm()) {
             setIsLoading(true);
             try {
-                await registerUser(formData);
-                setStatusMessage({
-                    type: 'success',
-                    message: 'Registration successful! Redirecting to verification...'
-                });
+                const response = await registerUser(formData);
+                showAlert(response.status || 'success', response.message || 'Registration successful! Redirecting to verification...');
                 setTimeout(() => {
                     navigate('/verify-otp', { state: { email: formData.email } });
                 }, 2000);
             } catch (error) {
-                setStatusMessage({
-                    type: 'error',
-                    message: error || 'Registration failed. Please try again'
-                });
+                if (error.response && error.response.data && error.response.data.errors) {
+                    error.response.data.errors.forEach(err => {
+                        showAlert(error.response?.data?.status || 'error', `${err.message}`);
+                    });
+                } else {
+                    showAlert(error.response?.data?.status || 'error', error.response?.data?.message || 'Registration failed. Please try again');
+                }
             } finally {
                 setIsLoading(false);
             }
@@ -87,27 +94,14 @@ const Register = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 p-6">
-            {isLoading && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
-                </div>
-            )}
-
             <div className="w-full max-w-md">
-                <form onSubmit={handleSubmit} className="bg-white/90  p-8 rounded-2xl shadow-2xl space-y-6 transition-all duration-300 hover:scale-[1.02] group">
+                <form onSubmit={handleSubmit} className="bg-white/90 p-8 rounded-2xl shadow-2xl space-y-6 transition-all duration-300 hover:scale-[1.02] group">
                     <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-pink-600 text-center mb-8">Create Account</h2>
-
-                    {statusMessage.message && (
-                        <div className={`p-4 rounded-lg ${statusMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                            {statusMessage.message}
-                        </div>
-                    )}
 
                     <div className="space-y-2">
                         <label className="text-gray-700 font-medium block">Email</label>
                         <input
-                            type="email"
+                            type="text"
                             name="email"
                             value={formData.email}
                             onChange={handleInputChange}
@@ -140,9 +134,11 @@ const Register = () => {
                         </div>
                         {formErrors.password && <p className="text-red-500 text-sm mt-1">{formErrors.password}</p>}
 
-
-                        <PasswordValidator password={formData.password} className="mt-3" />
-
+                        <PasswordValidator
+                            password={formData.password}
+                            className="mt-3"
+                            onValidation={handlePasswordValidation}
+                        />
                     </div>
 
                     <div className="space-y-2">

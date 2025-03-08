@@ -1,22 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useCallback } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import PasswordValidator from "../Components/PasswordValidator";
 import { login } from "../Api";
+import { AuthContext } from "../App";
 
 const Login = ({ onLoginSuccess }) => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { showAlert, setIsLoading } = useContext(AuthContext);
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     });
-    const location = useLocation();
-    const from = location.state?.from || '/';
-    const [isLoading, setIsLoading] = useState(false);
-    const [message, setMessage] = useState({ type: '', text: '' });
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({ email: false, password: false });
+    const [passwordValidation, setPasswordValidation] = useState({
+        length: false,
+        uppercase: false,
+        lowercase: false,
+        number: false,
+        specialChar: false
+    });
 
     const validateField = (name, value) => {
         switch (name) {
@@ -26,7 +32,6 @@ const Login = ({ onLoginSuccess }) => {
                 return '';
             case 'password':
                 if (!value) return 'Password is required';
-                if (value.length < 6) return 'Password must be at least 6 characters';
                 return '';
             default:
                 return '';
@@ -37,12 +42,11 @@ const Login = ({ onLoginSuccess }) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
 
-        if (touched[name]) {
-            setErrors(prev => ({
-                ...prev,
-                [name]: validateField(name, value)
-            }));
-        }
+        // Validate the field in real-time
+        setErrors(prev => ({
+            ...prev,
+            [name]: validateField(name, value)
+        }));
     };
 
     const handleBlur = (e) => {
@@ -57,36 +61,36 @@ const Login = ({ onLoginSuccess }) => {
     const validateForm = () => {
         const newErrors = {
             email: validateField('email', formData.email),
-            password: validateField('password', formData.password)
+            password: validateField('password', formData.password) || Object.values(passwordValidation).some(check => !check) ? 'Password does not meet the requirements' : ''
         };
         setErrors(newErrors);
         setTouched({ email: true, password: true });
         return !Object.values(newErrors).some(error => error);
     };
 
+    // Memoize the handlePasswordValidation function to prevent unnecessary re-renders
+    const handlePasswordValidation = useCallback((checks) => {
+        setPasswordValidation(checks);
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm()) return;
 
         setIsLoading(true);
-        setMessage({ type: '', text: '' });
 
         try {
-            const response = await login(formData); // Call login API
-            setMessage({ type: 'success', text: 'Login successful!' });
-
+            const response = await login(formData);
+            showAlert('success', 'Login successful!');
             setTimeout(() => {
-                onLoginSuccess(); // Refresh authentication state
-                const redirectTo = from && from !== '/' ? from : '/'; // Redirect to "from" or "/"
-                navigate(redirectTo, { replace: true, state: { showSaveDialog: location.state?.showSaveDialog, ClearEditor: location.state?.ClearEditor } });
+                onLoginSuccess();
+                navigate(location.state?.from || '/');
             }, 1500);
         } catch (err) {
             if (err === 'Email verification required') {
-                setMessage({
-                    type: 'error',
-                    text: `${err}`
-                });
+                showAlert('error', `${err}`);
                 setTimeout(() => {
+                    onLoginSuccess();
                     navigate('/verify-otp', {
                         state: {
                             email: formData.email,
@@ -95,28 +99,16 @@ const Login = ({ onLoginSuccess }) => {
                     });
                 }, 2000);
             } else {
-                setMessage({
-                    type: 'error',
-                    text: err || 'Login failed. Please try again.'
-                });
+                showAlert('error', err || 'Login failed. Please try again.');
             }
         } finally {
             setIsLoading(false);
         }
     };
 
-
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 p-6">
             <div className="w-full max-w-md">
-                {message.text && (
-                    <div className={`mb-4 p-4 rounded-lg text-center text-white ${message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-                        }`}>
-                        {message.text}
-                    </div>
-                )}
-
                 <form onSubmit={handleSubmit} className="bg-white/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl space-y-6">
                     <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-pink-600 text-center">Login</h2>
 
@@ -148,12 +140,10 @@ const Login = ({ onLoginSuccess }) => {
                                 className={`w-full px-4 py-3 rounded-lg border ${touched.password && errors.password ? 'border-red-500' : 'border-gray-300'
                                     } focus:border-violet-500 focus:ring-2 focus:ring-violet-200`}
                             />
-
-
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                className="absolute right-3 top-4 text-gray-500 hover:text-gray-700" // Adjusted top position
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
@@ -161,7 +151,11 @@ const Login = ({ onLoginSuccess }) => {
                                 <p className="mt-1 text-sm text-red-500">{errors.password}</p>
                             )}
                         </div>
-                        <PasswordValidator password={formData.password} className="mt-3" />
+                        <PasswordValidator
+                            password={formData.password}
+                            className="mt-3"
+                            onValidation={handlePasswordValidation}
+                        />
                     </div>
 
                     <div className="flex justify-between text-sm">
@@ -175,10 +169,9 @@ const Login = ({ onLoginSuccess }) => {
 
                     <button
                         type="submit"
-                        disabled={isLoading}
-                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                        {isLoading ? 'Loading...' : 'Login'}
+                        Login
                     </button>
                 </form>
             </div>
