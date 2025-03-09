@@ -8,7 +8,7 @@ import Alert from '../Components/Alert';
 import { useAuth } from '../App';
 import axios from 'axios';
 
-// Utility function for generating UUIDs remains the same
+// Utility function for generating UUIDs
 const generateUUID = () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
@@ -17,27 +17,18 @@ const generateUUID = () => {
     });
 };
 
-
-export const Loader = () => (
-    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-    </svg>
-);
-
-
-// Custom Dialog Component remains the same
+// Custom Dialog Component
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity">
             <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
-                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+                <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 transform transition-all duration-300 scale-100">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">{title}</h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+                        <h3 className="text-lg font-medium">{title}</h3>
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
@@ -48,14 +39,14 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
     );
 };
 
-// Custom Button Component remains the same
+// Custom Button Component
 export const CustomButton = ({ children, variant = 'primary', className = '', ...props }) => {
-    const baseStyles = "inline-flex items-center px-4 py-2 text-sm font-medium rounded transition-colors";
+    const baseStyles = "inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 shadow-sm";
     const variants = {
-        primary: "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300",
-        secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300",
-        danger: "bg-red-600 text-white hover:bg-red-700",
-        outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+        primary: "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 disabled:bg-indigo-300",
+        secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 active:bg-gray-300",
+        danger: "bg-red-500 text-white hover:bg-red-600 active:bg-red-700",
+        outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
     };
 
     return (
@@ -64,6 +55,14 @@ export const CustomButton = ({ children, variant = 'primary', className = '', ..
         </button>
     );
 };
+
+// Custom Loader Component
+export const LoaderIcon = () => (
+    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+);
 
 const CodeEditor = ({ showSidebar }) => {
     const [code, setCode] = useState(() => {
@@ -91,7 +90,6 @@ const CodeEditor = ({ showSidebar }) => {
     const [displayFileName, setDisplayFileName] = useState('Untitled File');
     const { user } = useAuth();
 
-
     const [isSaving, setIsSaving] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -99,14 +97,9 @@ const CodeEditor = ({ showSidebar }) => {
     const [programToDelete, setProgramToDelete] = useState(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-
-
     useEffect(() => {
         localStorage.setItem('unsavedCode', code);
     }, [code]);
-
-
-
 
     useEffect(() => {
         if (code !== localStorage.getItem('unsavedCode')) {
@@ -115,18 +108,13 @@ const CodeEditor = ({ showSidebar }) => {
         localStorage.setItem('unsavedCode', code);
     }, [code]);
 
-
     useEffect(() => {
         if (user) {
             fetchSavedPrograms();
         }
     }, [user]);
 
-
-
-
-
-    // WebSocket connection effect remains the same
+    // WebSocket connection effect
     useEffect(() => {
         const connectWebSocket = () => {
             const ws = new WebSocket(`ws://localhost:5000/ws?clientId=${clientId.current}`);
@@ -191,7 +179,6 @@ const CodeEditor = ({ showSidebar }) => {
         }
     }, [user, location.state, navigate]);
 
-
     const checkFileExists = async (fileId) => {
         try {
             const response = await axios.get(`http://localhost:5000/api/managecode/${fileId}`, {
@@ -206,7 +193,6 @@ const CodeEditor = ({ showSidebar }) => {
         }
     };
 
-
     const clearEditor = () => {
         setCode('');
         setCurrentFileId(null);
@@ -215,8 +201,6 @@ const CodeEditor = ({ showSidebar }) => {
         setIsFileSaved(true);
         localStorage.removeItem('unsavedCode');
     };
-
-
 
     const handleLoadProgram = async (id) => {
         try {
@@ -256,9 +240,6 @@ const CodeEditor = ({ showSidebar }) => {
             setSavedPrograms([]);
         }
     };
-
-
-
 
     // Update handleSaveCode to refresh files after update
     const handleSaveCode = async () => {
@@ -313,7 +294,6 @@ const CodeEditor = ({ showSidebar }) => {
         }
     };
 
-
     const handleSaveNewFile = async () => {
         if (!user) {
             showAlert('Please login to save your code', 'info');
@@ -367,14 +347,10 @@ const CodeEditor = ({ showSidebar }) => {
         }
     };
 
-
     const handleSaveAndNew = async () => {
-
-
         if (!user) {
             showAlert('Please login to save your code', 'info');
             navigate('/login', { state: { from: location.pathname, showSaveDialog: true, ClearEditor: true } });
-
             return;
         }
         setIsUpdating(true);
@@ -399,8 +375,6 @@ const CodeEditor = ({ showSidebar }) => {
             setIsUpdating(false);
         }
     };
-
-
 
     const confirmDelete = async () => {
         if (programToDelete) {
@@ -431,7 +405,6 @@ const CodeEditor = ({ showSidebar }) => {
         }
     };
 
-
     const handleNewFile = () => {
         if (!user && code.trim()) {
             setShowNewFileDialog(true);
@@ -446,24 +419,10 @@ const CodeEditor = ({ showSidebar }) => {
         clearEditor(); // If no unsaved changes, clear the editor
     };
 
-
-
-
-
-
-
-
     const handleDontSaveAndNew = () => {
         setShowNewFileDialog(false);
         clearEditor(); // Clear the editor without saving
     };
-
-
-
-
-
-
-
 
     const checkFileNameExists = async (name) => {
         try {
@@ -497,17 +456,6 @@ const CodeEditor = ({ showSidebar }) => {
             setAlerts(prev => prev.filter(alert => alert.id !== id));
         }, 3000);
     };
-
-
-
-
-
-
-
-
-
-
-
 
     const handleFileNameChange = async (e) => {
         const value = e.target.value;
@@ -574,39 +522,37 @@ const CodeEditor = ({ showSidebar }) => {
     };
 
     return (
-        <div className="flex h-screen">
+        <div className="flex h-screen bg-slate-50">
             {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="flex items-center justify-between p-4 border-b">
-                    <h2 className="text-lg font-semibold">Saved Programs</h2>
-                    <button
-                        className="p-1 hover:bg-gray-100 rounded"
-                    >
-
-                    </button>
+            <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 shadow-lg transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                    <h2 className="text-lg font-medium text-gray-800">Saved Programs</h2>
                 </div>
                 <div className="overflow-y-auto h-full pb-16">
                     {user ? (
                         savedPrograms.length === 0 ? (
-                            <div className="p-4 text-sm text-gray-500">
-                                No files saved yet
+                            <div className="p-6 text-center">
+                                <div className="text-gray-400 flex justify-center mb-2">
+                                    <FolderOpen className="h-10 w-10" />
+                                </div>
+                                <p className="text-sm text-gray-500">No files saved yet</p>
                             </div>
                         ) : (
                             savedPrograms.map((program) => (
                                 <div
                                     key={program._id}
-                                    className="flex items-center justify-between p-4 hover:bg-gray-100 border-b"
+                                    className="flex items-center justify-between p-3 hover:bg-gray-50 border-b border-gray-100 transition-colors duration-150"
                                 >
                                     <button
                                         onClick={() => handleLoadProgram(program._id)}
-                                        className="flex items-center flex-1"
+                                        className="flex items-center flex-1 text-left"
                                     >
-                                        <FolderOpen className="h-4 w-4 mr-2" />
-                                        <span className="truncate">{program.fileName}</span>
+                                        <FolderOpen className="h-4 w-4 mr-2 text-indigo-500" />
+                                        <span className="truncate text-gray-700 hover:text-indigo-600 transition-colors">{program.fileName}</span>
                                     </button>
                                     <button
                                         onClick={() => handleDeleteProgram(program._id)}
-                                        className="p-1 hover:text-red-600 ml-2"
+                                        className="p-1.5 rounded-full hover:bg-red-50 hover:text-red-600 transition-colors ml-2 text-gray-400"
                                     >
                                         <Trash className="h-4 w-4" />
                                     </button>
@@ -614,8 +560,11 @@ const CodeEditor = ({ showSidebar }) => {
                             ))
                         )
                     ) : (
-                        <div className="p-4 text-sm text-gray-500">
-                            Please login to view saved programs
+                        <div className="p-6 text-center">
+                            <div className="text-gray-400 flex justify-center mb-2">
+                                <FolderOpen className="h-10 w-10" />
+                            </div>
+                            <p className="text-sm text-gray-500">Please login to view saved programs</p>
                         </div>
                     )}
                 </div>
@@ -623,7 +572,7 @@ const CodeEditor = ({ showSidebar }) => {
 
             {/* Main Content */}
             <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="fixed top-4 right-4 z-50 space-y-2">
                         {alerts.map(alert => (
                             <Alert
@@ -636,14 +585,14 @@ const CodeEditor = ({ showSidebar }) => {
                     </div>
 
                     <div className="flex flex-col space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                             <div className="flex items-center space-x-2">
-
                                 <CustomButton
                                     variant="outline"
                                     onClick={handleNewFile}
+                                    className="flex items-center"
                                 >
-                                    <Plus className="h-4 w-4 mr-1" />
+                                    <Plus className="h-4 w-4 mr-1.5" />
                                     New File
                                 </CustomButton>
 
@@ -651,11 +600,12 @@ const CodeEditor = ({ showSidebar }) => {
                                     variant="primary"
                                     onClick={handleRunCode}
                                     disabled={isRunning || !isConnected}
+                                    className="flex items-center"
                                 >
                                     {isRunning ? (
-                                        <Square className="h-4 w-4 mr-1" />
+                                        <Square className="h-4 w-4 mr-1.5" />
                                     ) : (
-                                        <Play className="h-4 w-4 mr-1" />
+                                        <Play className="h-4 w-4 mr-1.5" />
                                     )}
                                     {isRunning ? 'Running' : 'Run'}
                                 </CustomButton>
@@ -664,8 +614,9 @@ const CodeEditor = ({ showSidebar }) => {
                                     <CustomButton
                                         variant="danger"
                                         onClick={handleStopCode}
+                                        className="flex items-center"
                                     >
-                                        <StopCircle className="h-4 w-4 mr-1" />
+                                        <StopCircle className="h-4 w-4 mr-1.5" />
                                         Stop
                                     </CustomButton>
                                 )}
@@ -674,64 +625,75 @@ const CodeEditor = ({ showSidebar }) => {
                                     variant="primary"
                                     onClick={handleSaveCode}
                                     disabled={isUpdating}
+                                    className="flex items-center"
                                 >
                                     {isUpdating ? (
-                                        <Loader />
+                                        <LoaderIcon />
                                     ) : (
-                                        <Save className="h-4 w-4 mr-1" />
+                                        <Save className="h-4 w-4 mr-1.5" />
                                     )}
                                     {currentFileId ? 'Update' : 'Save'}
                                 </CustomButton>
                             </div>
+
                             <div className="flex items-center space-x-4">
-                                {/* Add file name display */}
-                                <span className="text-sm font-medium text-gray-600">
-                                    {displayFileName}
-                                    {!isFileSaved && ' •'}
-                                </span>
+                                <div className="px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-200">
+                                    <span className="text-sm font-medium text-gray-700 flex items-center">
+                                        {displayFileName}
+                                        {!isFileSaved && <span className="w-2 h-2 rounded-full bg-indigo-500 ml-2"></span>}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex items-center space-x-4">
+
+                            <div className="flex items-center space-x-3">
                                 <select
                                     value={language}
                                     onChange={(e) => setLanguage(e.target.value)}
-                                    className="block w-40 rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="block rounded-md border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                                 >
                                     <option value="python">Python</option>
                                     <option value="javascript">JavaScript</option>
                                     <option value="cpp">C++</option>
                                     <option value="java">Java</option>
                                 </select>
-                                <div className="flex items-center space-x-2">
-                                    <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                                    <span className="text-sm text-gray-600">
+                                <div className="flex items-center px-3 py-1 rounded-full bg-white shadow-sm border border-gray-200">
+                                    <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} mr-2`} />
+                                    <span className="text-xs font-medium text-gray-600">
                                         {isConnected ? 'Connected' : 'Reconnecting...'}
                                     </span>
                                 </div>
                             </div>
                         </div>
 
-                        <Editor
-                            height="400px"
-                            language={language}
-                            value={code}
-                            onChange={(value) => {
-                                setCode(value || '')
-                                setIsFileSaved(false)
-                            }}
-                            theme="vs-dark"
-                            options={{
-                                minimap: { enabled: false },
-                                fontSize: 14,
-                                lineNumbers: 'on',
-                                automaticLayout: true,
-                            }}
-                        />
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                            <Editor
+                                height="450px"
+                                language={language}
+                                value={code}
+                                onChange={(value) => {
+                                    setCode(value || '')
+                                    setIsFileSaved(false)
+                                }}
+                                theme="vs-dark"
+                                options={{
+                                    minimap: { enabled: false },
+                                    fontSize: 14,
+                                    lineNumbers: 'on',
+                                    automaticLayout: true,
+                                    scrollBeyondLastLine: false,
+                                    fontFamily: 'JetBrains Mono, Consolas, "Courier New", monospace',
+                                    padding: { top: 16 },
+                                }}
+                            />
+                        </div>
 
                         <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Terminal</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-gray-700">Terminal</label>
+                            </div>
                             <div
                                 ref={terminalRef}
-                                className="relative h-64 bg-gray-900 rounded border border-gray-700"
+                                className="relative h-64 bg-gray-900 rounded-lg shadow-sm border border-gray-700 overflow-hidden"
                             >
                                 <pre className="h-full p-4 text-white font-mono text-sm overflow-auto">
                                     {terminal}
@@ -782,8 +744,7 @@ const CodeEditor = ({ showSidebar }) => {
                                 <input
                                     id="fileName"
                                     type="text"
-                                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'
-                                        }`}
+                                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
                                     placeholder="Enter file name"
                                     value={fileName}
                                     onChange={handleFileNameChange}
@@ -812,11 +773,12 @@ const CodeEditor = ({ showSidebar }) => {
                                     onClick={handleSaveNewFile}
                                     disabled={isFileNameExists || !fileName.trim() || isSaving}
                                 >
-                                    {isSaving ? <Loader /> : 'Save'}
+                                    {isSaving ? <LoaderIcon /> : 'Save'}
                                 </CustomButton>
                             </div>
                         </div>
                     </CustomDialog>
+
                     <CustomDialog
                         isOpen={showNewFileDialog}
                         onClose={() => setShowNewFileDialog(false)}
@@ -839,16 +801,15 @@ const CodeEditor = ({ showSidebar }) => {
                                     disabled={isUpdating || isFileDeleted}
                                 >
                                     {isUpdating ? (
-                                        <Loader />
+                                        <LoaderIcon />
                                     ) : (
-                                        <Save className="h-4 w-4 mr-1" />
+                                        <Save className="h-4 w-4 mr-1.5" />
                                     )}
                                     {currentFileId ? 'Update & Create New' : 'Save & Create New'}
                                 </CustomButton>
                             </div>
                         </div>
                     </CustomDialog>
-
 
                     <DeleteConfirmationDialog
                         isOpen={deleteDialogOpen}
@@ -858,10 +819,8 @@ const CodeEditor = ({ showSidebar }) => {
                             setDeleteDialogOpen(false);
                             setProgramToDelete(null);
                         }}
-
                         fileName={programToDelete?.fileName || ''}
                     />
-
                 </div>
             </div>
         </div>

@@ -96,8 +96,10 @@ const Login = ({ onLoginSuccess }) => {
             const response = await login(formData);
             showAlert('success', 'Login successful!');
             setTimeout(() => {
-                onLoginSuccess();
-                navigate(location.state?.from || '/');
+                onLoginSuccess(); // Refresh authentication state
+                const redirectTo = location.state?.from && location.state?.from !== '/' ? location.state?.from : '/'; // Redirect to "from" or "/"
+                navigate(redirectTo, { replace: true, state: { showSaveDialog: location.state?.showSaveDialog, ClearEditor: location.state?.ClearEditor } });
+
             }, 1500);
         } catch (err) {
             if (err === 'Email verification required') {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, CustomButton } from '../Pages/CodeEditor';
+import { LoaderIcon, CustomButton } from '../Pages/CodeEditor';
 import { X } from 'lucide-react';
 
 const DeleteConfirmationDialog = ({ isOpen, onClose, fileName, confirmDelete, isDeleting }) => {
@@ -96,7 +96,7 @@ const DeleteConfirmationDialog = ({ isOpen, onClose, fileName, confirmDelete, is
                         onClick={handleDelete}
                         disabled={isDeleting}
                     >
-                        {isDeleting ? <Loader /> : 'Delete'}
+                        {isDeleting ? <LoaderIcon /> : 'Delete'}
                     </CustomButton>
                 </div>
             </div>
