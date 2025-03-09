@@ -1,42 +1,95 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 import PasswordValidator from "../Components/PasswordValidator";
 import { resetPassword } from "../Api";
+import { AuthContext } from "../App";
 
 const ResetPassword = () => {
     const navigate = useNavigate();
     const { token } = useParams();
+    const { showAlert, setIsLoading } = useContext(AuthContext);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [message, setMessage] = useState({ type: '', text: '' });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [errors, setErrors] = useState({});
+    const [passwordValidation, setPasswordValidation] = useState({
+        length: false,
+        uppercase: false,
+        lowercase: false,
+        number: false,
+        specialChar: false
+    });
 
+    const validateField = (name, value) => {
+        switch (name) {
+            case 'password':
+                if (!value) return 'Password is required';
+                else if (!Object.values(passwordValidation).every(check => check)) {
+                    return 'Password does not meet the requirements';
+                }
+                return '';
+            case 'confirmPassword':
+                if (!value) return 'Please confirm your password';
+                else if (value !== password) return 'Passwords do not match';
+                return '';
+            default:
+                return '';
+        }
+    };
 
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        if (name === 'password') {
+            setPassword(value);
+        } else if (name === 'confirmPassword') {
+            setConfirmPassword(value);
+        }
+
+        // Clear errors when typing
+        setErrors(prev => ({
+            ...prev,
+            [name]: ''
+        }));
+    };
+
+    const handleBlur = (e) => {
+        const { name, value } = e.target;
+        setErrors(prev => ({
+            ...prev,
+            [name]: validateField(name, value)
+        }));
+    };
+
+    const validateForm = () => {
+        const newErrors = {
+            password: validateField('password', password),
+            confirmPassword: validateField('confirmPassword', confirmPassword)
+        };
+        setErrors(newErrors);
+        return !Object.values(newErrors).some(error => error);
+    };
+
+    // Memoize the handlePasswordValidation function to prevent unnecessary re-renders
+    const handlePasswordValidation = useCallback((checks) => {
+        setPasswordValidation(checks);
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        if (!validateForm()) return;
 
         setIsLoading(true);
-        setMessage({ type: '', text: '' });
 
         try {
-            const response = await resetPassword({ password }, token);
-            setMessage({ type: 'success', text: `${response.message}` });
+            const response = await resetPassword({ password, confirmPassword }, token);
+            showAlert('success', response.message || 'Password reset successfully!');
             setTimeout(() => {
-                navigate('/login')
+                navigate('/login');
             }, 2000);
-
-
         } catch (err) {
-            setMessage({
-                type: 'error',
-                text: err || 'Password reset failed. Please try again.'
-            });
+            showAlert('error', err || 'Password reset failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -45,25 +98,17 @@ const ResetPassword = () => {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 p-6">
             <div className="w-full max-w-md">
-                {message.text && (
-                    <div className={`mb-4 p-4 rounded-lg text-center text-white ${message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-                        }`}>
-                        {message.text}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="bg-white/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl space-y-6">
+                <form onSubmit={handleSubmit} className="bg-white/90 p-8 rounded-2xl shadow-2xl space-y-6 transition-all duration-300 hover:scale-[1.02] group">
                     <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-pink-600 text-center">Reset Password</h2>
 
                     <div className="space-y-4">
                         <div className="relative">
                             <input
                                 type={showPassword ? "text" : "password"}
+                                name="password"
                                 value={password}
-                                onChange={e => {
-                                    setPassword(e.target.value);
-                                    if (errors.password) setErrors({ ...errors, password: '' });
-                                }}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
                                 placeholder="New Password"
                                 className={`w-full px-4 py-3 rounded-lg border ${errors.password ? 'border-red-500' : 'border-gray-300'
                                     } focus:border-violet-500 focus:ring-2 focus:ring-violet-200`}
@@ -75,22 +120,24 @@ const ResetPassword = () => {
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
-                            {errors.password && (
-                                <p className="mt-1 text-sm text-red-500">{errors.password}</p>
-                            )}
+
                         </div>
-                        <PasswordValidator password={password} className="mt-3" />
+                        {errors.password && (
+                            <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+                        )}
+                        <PasswordValidator
+                            password={password}
+                            className="mt-3"
+                            onValidation={handlePasswordValidation}
+                        />
 
                         <div className="relative">
                             <input
                                 type={showConfirmPassword ? "text" : "password"}
+                                name="confirmPassword"
                                 value={confirmPassword}
-                                onChange={e => {
-                                    setConfirmPassword(e.target.value);
-                                    if (errors.confirmPassword) {
-                                        setErrors({ ...errors, confirmPassword: '' });
-                                    }
-                                }}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
                                 placeholder="Confirm New Password"
                                 className={`w-full px-4 py-3 rounded-lg border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                                     } focus:border-violet-500 focus:ring-2 focus:ring-violet-200`}
@@ -102,22 +149,30 @@ const ResetPassword = () => {
                             >
                                 {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
-                            {errors.confirmPassword && (
-                                <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
+                            {password && confirmPassword && (
+                                <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                                    {password === confirmPassword ?
+                                        <Check className="text-green-500 w-5 h-5" /> :
+                                        <X className="text-red-500 w-5 h-5" />
+                                    }
+                                </div>
                             )}
+
                         </div>
+                        {errors.confirmPassword && (
+                            <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+                        )}
                     </div>
 
                     <button
                         type="submit"
-                        disabled={isLoading}
-                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+                        className="w-full bg-gradient-to-r from-violet-500 to-pink-500 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                        {isLoading ? 'Resetting...' : 'Reset Password'}
+                        Reset Password
                     </button>
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

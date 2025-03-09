@@ -32,6 +32,9 @@ const Login = ({ onLoginSuccess }) => {
                 return '';
             case 'password':
                 if (!value) return 'Password is required';
+                if (!Object.values(passwordValidation).every(check => check)) {
+                    errors.password = 'Password does not meet the requirements';
+                }
                 return '';
             default:
                 return '';
@@ -59,13 +62,23 @@ const Login = ({ onLoginSuccess }) => {
     };
 
     const validateForm = () => {
-        const newErrors = {
-            email: validateField('email', formData.email),
-            password: validateField('password', formData.password) || Object.values(passwordValidation).some(check => !check) ? 'Password does not meet the requirements' : ''
-        };
-        setErrors(newErrors);
+        const errors = {};
+
+        if (!formData.email) {
+            errors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            errors.email = 'Invalid email format';
+        }
+
+        if (!formData.password) {
+            errors.password = 'Password is required';
+        } else if (!Object.values(passwordValidation).every(check => check)) {
+            errors.password = 'Password does not meet the requirements';
+        }
+
+        setErrors(errors);
         setTouched({ email: true, password: true });
-        return !Object.values(newErrors).some(error => error);
+        return Object.keys(errors).length === 0;
     };
 
     // Memoize the handlePasswordValidation function to prevent unnecessary re-renders
@@ -109,7 +122,7 @@ const Login = ({ onLoginSuccess }) => {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 p-6">
             <div className="w-full max-w-md">
-                <form onSubmit={handleSubmit} className="bg-white/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl space-y-6">
+                <form onSubmit={handleSubmit} className="bg-white/90 p-8 rounded-2xl shadow-2xl space-y-6 transition-all duration-300 hover:scale-[1.02] group">
                     <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-pink-600 text-center">Login</h2>
 
                     <div className="space-y-4">
@@ -124,10 +137,10 @@ const Login = ({ onLoginSuccess }) => {
                                 className={`w-full px-4 py-3 rounded-lg border ${touched.email && errors.email ? 'border-red-500' : 'border-gray-300'
                                     } focus:border-violet-500 focus:ring-2 focus:ring-violet-200`}
                             />
-                            {touched.email && errors.email && (
-                                <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                            )}
                         </div>
+                        {touched.email && errors.email && (
+                            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+                        )}
 
                         <div className="relative">
                             <input
@@ -147,10 +160,10 @@ const Login = ({ onLoginSuccess }) => {
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
-                            {touched.password && errors.password && (
-                                <p className="mt-1 text-sm text-red-500">{errors.password}</p>
-                            )}
                         </div>
+                        {touched.password && errors.password && (
+                            <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+                        )}
                         <PasswordValidator
                             password={formData.password}
                             className="mt-3"
