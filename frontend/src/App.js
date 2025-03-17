@@ -10,6 +10,7 @@ import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
 import VerifyEmail from './Pages/VerifyEmail';
 import Alert from './Components/Alert'; // Import the Alert component
+import Loader from './Components/Loader';
 import { GenerateUUID } from './Components/GenerateUUID'; // Import the generateUUID utility
 
 export const AuthContext = createContext(null);
@@ -22,6 +23,7 @@ const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   const checkAuth = useCallback(async () => {
+    setIsLoading(true);
     try {
       const response = await axios.get('http://localhost:5000/api/auth/user', {
         withCredentials: true,
@@ -44,12 +46,16 @@ const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    setIsLoading(true);
     try {
       await axios.post('http://localhost:5000/api/auth/logout', {}, { withCredentials: true });
       setUser(null);
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
+    }
+    finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,9 +115,7 @@ const AppContent = () => {
 
       {/* Centralized Loader */}
       {isLoading && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
-        </div>
+        <Loader fullScreen={true} />
       )}
 
       <NavBar

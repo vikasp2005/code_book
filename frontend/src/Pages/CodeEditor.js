@@ -1,12 +1,11 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Editor from "@monaco-editor/react";
 import { Play, StopCircle, Square, Save, X, Plus, Trash, FolderOpen } from "lucide-react";
 import DeleteConfirmationDialog from '../Components/DeleteConfirmationDialog';
-import Alert from '../Components/Alert';
-import { useAuth } from '../App';
+import { useAuth, AuthContext } from '../App';
 import axios from 'axios';
+import '../Lib/Animations.css';
 
 // Utility function for generating UUIDs
 const generateUUID = () => {
@@ -19,17 +18,32 @@ const generateUUID = () => {
 
 // Custom Dialog Component
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
+    const [animateOut, setAnimateOut] = useState(false);
+
+    const handleClose = () => {
+        setAnimateOut(true);
+        setTimeout(() => {
+            setAnimateOut(false);
+            onClose();
+        }, 300);
+    };
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity">
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="fixed inset-0 bg-black/30" onClick={onClose} />
-                <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 transform transition-all duration-300 scale-100">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity flex items-center justify-center">
+            <div className="min-h-screen items-center justify-center p-4 flex" onClick={handleClose}>
+                <div
+                    className={`relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 transform transition-all duration-300 ${animateOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">{title}</h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                            <X className="h-5 w-5" />
+                        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+                        <button
+                            onClick={handleClose}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                            <X className="h-4 w-4" />
                         </button>
                     </div>
                     {children}
@@ -41,16 +55,19 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
 
 // Custom Button Component
 export const CustomButton = ({ children, variant = 'primary', className = '', ...props }) => {
-    const baseStyles = "inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 shadow-sm";
+    const baseStyles = "inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm";
     const variants = {
-        primary: "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 disabled:bg-indigo-300",
-        secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 active:bg-gray-300",
-        danger: "bg-red-500 text-white hover:bg-red-600 active:bg-red-700",
+        primary: "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white hover:from-indigo-700 hover:to-indigo-600 active:from-indigo-800 active:to-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed",
+        secondary: "bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 hover:from-gray-200 hover:to-gray-100 active:from-gray-300 active:to-gray-200",
+        danger: "bg-gradient-to-r from-red-500 to-red-400 text-white hover:from-red-600 hover:to-red-500 active:from-red-700 active:to-red-600",
         outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
     };
 
     return (
-        <button className={`${baseStyles} ${variants[variant]} ${className}`} {...props}>
+        <button
+            className={`${baseStyles} ${variants[variant]} ${className} ${props.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
+            {...props}
+        >
             {children}
         </button>
     );
@@ -68,12 +85,12 @@ const CodeEditor = ({ showSidebar }) => {
     const [code, setCode] = useState(() => {
         return localStorage.getItem('unsavedCode') || '';
     });
+    const { showAlert, setIsLoading } = useContext(AuthContext);
     const [language, setLanguage] = useState('python');
     const [terminal, setTerminal] = useState('');
     const [isRunning, setIsRunning] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
     const [inputValue, setInputValue] = useState('');
-    const [alerts, setAlerts] = useState([]);
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [fileName, setFileName] = useState('');
     const [currentFileId, setCurrentFileId] = useState(null);
@@ -96,9 +113,18 @@ const CodeEditor = ({ showSidebar }) => {
     const [isFileDeleted, setIsFileDeleted] = useState(false);
     const [programToDelete, setProgramToDelete] = useState(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
     useEffect(() => {
-        localStorage.setItem('unsavedCode', code);
+        if (user) {
+            fetchSavedPrograms();
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (displayFileName === 'Untitled File') {
+            localStorage.setItem('unsavedCode', code);
+        }
     }, [code]);
 
     useEffect(() => {
@@ -107,12 +133,6 @@ const CodeEditor = ({ showSidebar }) => {
         }
         localStorage.setItem('unsavedCode', code);
     }, [code]);
-
-    useEffect(() => {
-        if (user) {
-            fetchSavedPrograms();
-        }
-    }, [user]);
 
     // WebSocket connection effect
     useEffect(() => {
@@ -203,6 +223,7 @@ const CodeEditor = ({ showSidebar }) => {
     };
 
     const handleLoadProgram = async (id) => {
+        setIsLoading(true);
         try {
             const response = await axios.get(`http://localhost:5000/api/managecode/${id}`,
                 { withCredentials: true }
@@ -216,7 +237,10 @@ const CodeEditor = ({ showSidebar }) => {
             setIsFileDeleted(false);
         } catch (error) {
             console.error('Failed to load program:', error);
-            showAlert('Failed to load program', 'error');
+            showAlert('error', 'Failed to load program');
+        }
+        finally {
+            setIsLoading(false);
         }
     };
 
@@ -230,6 +254,7 @@ const CodeEditor = ({ showSidebar }) => {
     };
 
     const fetchSavedPrograms = async () => {
+        setIsLoading(true);
         try {
             const response = await axios.get('http://localhost:5000/api/managecode/list', {
                 withCredentials: true,
@@ -239,18 +264,21 @@ const CodeEditor = ({ showSidebar }) => {
             console.error('Failed to fetch programs:', error);
             setSavedPrograms([]);
         }
+        finally {
+            setIsLoading(false);
+        }
     };
 
     // Update handleSaveCode to refresh files after update
     const handleSaveCode = async () => {
         if (!code.trim()) {
-            showAlert('Please enter some code to save', 'error');
+            showAlert('error', 'Please enter some code to save');
             return;
         }
 
         if (!user) {
             localStorage.setItem('unsavedCode', code);
-            showAlert('Please login to save your code', 'info');
+            showAlert('info', 'Please login to save your code');
             setTimeout(() => {
                 navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
             }, 1500);
@@ -268,7 +296,7 @@ const CodeEditor = ({ showSidebar }) => {
             const exists = await checkFileExists(currentFileId);
             if (!exists) {
                 setIsFileDeleted(true);
-                showAlert('This file has been deleted. Please save as a new file.', 'error');
+                showAlert('error', 'This file has been deleted. Please save as a new file.');
                 setShowSaveDialog(true);
                 return;
             }
@@ -279,15 +307,17 @@ const CodeEditor = ({ showSidebar }) => {
             }, { withCredentials: true });
 
             setIsFileSaved(true);
-            showAlert('Code updated successfully', 'success');
+            showSaveSuccess(true);
+            setTimeout(() => setShowSaveSuccess(false), 2000);
+            showAlert('success', 'Code updated successfully');
             await fetchSavedPrograms();
         } catch (error) {
             if (error.response && error.response.status === 404) {
                 setIsFileDeleted(true);
-                showAlert('This file has been deleted. Please save as a new file.', 'error');
+                showAlert('error', 'This file has been deleted. Please save as a new file.');
                 setShowSaveDialog(true);
             } else {
-                showAlert(error.message, 'error');
+                showAlert('error', error.message);
             }
         } finally {
             setIsUpdating(false);
@@ -296,7 +326,7 @@ const CodeEditor = ({ showSidebar }) => {
 
     const handleSaveNewFile = async () => {
         if (!user) {
-            showAlert('Please login to save your code', 'info');
+            showAlert('info', 'Please login to save your code');
             setTimeout(() => {
                 navigate('/login', { state: { from: location.pathname, showSaveDialog: true } });
             }, 1500);
@@ -304,7 +334,7 @@ const CodeEditor = ({ showSidebar }) => {
         }
 
         if (!fileName.trim()) {
-            showAlert('Please enter a file name', 'error');
+            showAlert('error', 'Please enter a file name');
             return;
         }
 
@@ -313,7 +343,7 @@ const CodeEditor = ({ showSidebar }) => {
             const exists = await checkFileNameExists(fileName);
             if (exists) {
                 setIsFileNameExists(true);
-                showAlert('File name already exists', 'warning');
+                showAlert('warning', 'File name already exists');
                 return;
             }
 
@@ -329,7 +359,9 @@ const CodeEditor = ({ showSidebar }) => {
             setIsFileNameExists(false);
             setIsFileSaved(true);
             setIsFileDeleted(false);
-            showAlert('Code saved successfully', 'success');
+            setShowSaveSuccess(true);
+            setTimeout(() => setShowSaveSuccess(false), 2000);
+            showAlert('success', 'Code saved successfully');
 
             // Clear the editor after successful save when coming from new file
             if (ClearEditor) {
@@ -341,7 +373,7 @@ const CodeEditor = ({ showSidebar }) => {
             localStorage.removeItem('unsavedCode');
             await fetchSavedPrograms();
         } catch (error) {
-            showAlert(error.message, 'error');
+            showAlert('error', error.message);
         } finally {
             setIsSaving(false);
         }
@@ -349,7 +381,7 @@ const CodeEditor = ({ showSidebar }) => {
 
     const handleSaveAndNew = async () => {
         if (!user) {
-            showAlert('Please login to save your code', 'info');
+            showAlert('info', 'Please login to save your code');
             navigate('/login', { state: { from: location.pathname, showSaveDialog: true, ClearEditor: true } });
             return;
         }
@@ -363,14 +395,14 @@ const CodeEditor = ({ showSidebar }) => {
                 }, { withCredentials: true });
                 setShowNewFileDialog(false);
                 clearEditor();
-                showAlert('Code updated successfully', 'success');
+                showAlert('success', 'Code updated successfully');
             } else {
                 setShowNewFileDialog(false);
                 setClearEditor(true);
                 setShowSaveDialog(true); // Show save dialog for new file
             }
         } catch (error) {
-            showAlert(error.message, 'error');
+            showAlert('error', error.message);
         } finally {
             setIsUpdating(false);
         }
@@ -395,10 +427,10 @@ const CodeEditor = ({ showSidebar }) => {
                 );
                 setDeleteDialogOpen(false);
                 setProgramToDelete(null);
-                showAlert('File deleted successfully', 'success');
+                showAlert('success', 'File deleted successfully');
                 await fetchSavedPrograms();
             } catch (error) {
-                showAlert(error.message, 'error');
+                showAlert('error', error.message);
             } finally {
                 setIsDeleting(false);
             }
@@ -444,17 +476,9 @@ const CodeEditor = ({ showSidebar }) => {
             );
             return response.data.exists;
         } catch (error) {
-            showAlert('Error checking file name', 'error');
+            showAlert('error', 'Error checking file name');
             return false;
         }
-    };
-
-    const showAlert = (message, type = 'info') => {
-        const id = generateUUID();
-        setAlerts(prev => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setAlerts(prev => prev.filter(alert => alert.id !== id));
-        }, 3000);
     };
 
     const handleFileNameChange = async (e) => {
@@ -470,7 +494,7 @@ const CodeEditor = ({ showSidebar }) => {
 
     const handleRunCode = async () => {
         if (!code.trim()) {
-            showAlert('Please enter some code to execute', 'error');
+            showAlert('error', 'Please enter some code to execute');
             return;
         }
 
@@ -491,9 +515,9 @@ const CodeEditor = ({ showSidebar }) => {
                 const data = await response.json();
                 throw new Error(data.error || 'Error during execution');
             }
-            showAlert('Code execution started successfully', 'success');
+            showAlert('success', 'Code execution started successfully');
         } catch (error) {
-            showAlert(error.message, 'error');
+            showAlert('error', error.message);
             setIsRunning(false);
             setTerminal(prev => prev + `Error: ${error.message}\n`);
         }
@@ -515,18 +539,24 @@ const CodeEditor = ({ showSidebar }) => {
 
             setTerminal(prev => prev + '\nProgram stopped by user\n');
             setIsRunning(false);
-            showAlert('Execution stopped successfully', 'success');
+            showAlert('success', 'Execution stopped successfully');
         } catch (error) {
-            showAlert(error.message, 'error');
+            showAlert('error', error.message);
         }
     };
 
     return (
-        <div className="flex h-screen bg-slate-50">
+        <div className="flex min-h-screen">
             {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 shadow-lg transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div
+                className={`fixed inset-y-0 left-0 z-30 w-64 glass-card border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'
+                    }`}
+            >
                 <div className="flex items-center justify-between p-4 border-b border-gray-100">
                     <h2 className="text-lg font-medium text-gray-800">Saved Programs</h2>
+                    <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                        {savedPrograms.length} files
+                    </span>
                 </div>
                 <div className="overflow-y-auto h-full pb-16">
                     {user ? (
@@ -536,35 +566,64 @@ const CodeEditor = ({ showSidebar }) => {
                                     <FolderOpen className="h-10 w-10" />
                                 </div>
                                 <p className="text-sm text-gray-500">No files saved yet</p>
+                                <CustomButton
+                                    variant="primary"
+                                    className="mt-4 text-xs py-1.5 px-3"
+                                    onClick={() => setShowSaveDialog(true)}
+                                >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Create New File
+                                </CustomButton>
                             </div>
                         ) : (
-                            savedPrograms.map((program) => (
-                                <div
-                                    key={program._id}
-                                    className="flex items-center justify-between p-3 hover:bg-gray-50 border-b border-gray-100 transition-colors duration-150"
-                                >
-                                    <button
-                                        onClick={() => handleLoadProgram(program._id)}
-                                        className="flex items-center flex-1 text-left"
+                            <div className="divide-y divide-gray-100">
+                                {savedPrograms.map((program) => (
+                                    <div
+                                        key={program._id}
+                                        className={`flex items-center justify-between p-3 hover:bg-indigo-50 transition-colors duration-150 ${currentFileId === program._id ? 'bg-indigo-50 border-l-2 border-indigo-500' : ''
+                                            }`}
                                     >
-                                        <FolderOpen className="h-4 w-4 mr-2 text-indigo-500" />
-                                        <span className="truncate text-gray-700 hover:text-indigo-600 transition-colors">{program.fileName}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteProgram(program._id)}
-                                        className="p-1.5 rounded-full hover:bg-red-50 hover:text-red-600 transition-colors ml-2 text-gray-400"
-                                    >
-                                        <Trash className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            ))
+                                        <button
+                                            onClick={() => handleLoadProgram(program._id)}
+                                            className="flex items-center flex-1 text-left"
+                                        >
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-100 text-indigo-600 mr-3">
+                                                <FolderOpen className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <p className="truncate text-gray-700 font-medium">{program.fileName}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(program.updatedAt).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteProgram(program._id);
+                                            }}
+                                            className="p-1.5 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors ml-2 text-gray-400"
+                                            aria-label={`Delete ${program.fileName}`}
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         )
                     ) : (
                         <div className="p-6 text-center">
                             <div className="text-gray-400 flex justify-center mb-2">
                                 <FolderOpen className="h-10 w-10" />
                             </div>
-                            <p className="text-sm text-gray-500">Please login to view saved programs</p>
+                            <p className="text-sm text-gray-500 mb-4">Please login to view saved programs</p>
+                            <CustomButton
+                                variant="primary"
+                                className="text-xs py-1.5 px-3"
+                                onClick={() => navigate('/login')}
+                            >
+                                Login to Save
+                            </CustomButton>
                         </div>
                     )}
                 </div>
@@ -573,99 +632,103 @@ const CodeEditor = ({ showSidebar }) => {
             {/* Main Content */}
             <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="fixed top-4 right-4 z-50 space-y-2">
-                        {alerts.map(alert => (
-                            <Alert
-                                key={alert.id}
-                                message={alert.message}
-                                type={alert.type}
-                                onClose={() => setAlerts(prev => prev.filter(a => a.id !== alert.id))}
-                            />
-                        ))}
-                    </div>
-
                     <div className="flex flex-col space-y-4">
-                        <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <div className="flex items-center space-x-2">
-                                <CustomButton
-                                    variant="outline"
-                                    onClick={handleNewFile}
-                                    className="flex items-center"
-                                >
-                                    <Plus className="h-4 w-4 mr-1.5" />
-                                    New File
-                                </CustomButton>
-
-                                <CustomButton
-                                    variant="primary"
-                                    onClick={handleRunCode}
-                                    disabled={isRunning || !isConnected}
-                                    className="flex items-center"
-                                >
-                                    {isRunning ? (
-                                        <Square className="h-4 w-4 mr-1.5" />
-                                    ) : (
-                                        <Play className="h-4 w-4 mr-1.5" />
-                                    )}
-                                    {isRunning ? 'Running' : 'Run'}
-                                </CustomButton>
-
-                                {isRunning && (
+                        {/* Toolbar */}
+                        <div className="glass-card rounded-xl p-4 backdrop-blur-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex items-center flex-wrap gap-2">
                                     <CustomButton
-                                        variant="danger"
-                                        onClick={handleStopCode}
+                                        variant="outline"
+                                        onClick={handleNewFile}
                                         className="flex items-center"
                                     >
-                                        <StopCircle className="h-4 w-4 mr-1.5" />
-                                        Stop
+                                        <Plus className="h-4 w-4 mr-1.5" />
+                                        New File
                                     </CustomButton>
-                                )}
 
-                                <CustomButton
-                                    variant="primary"
-                                    onClick={handleSaveCode}
-                                    disabled={isUpdating}
-                                    className="flex items-center"
-                                >
-                                    {isUpdating ? (
-                                        <LoaderIcon />
-                                    ) : (
-                                        <Save className="h-4 w-4 mr-1.5" />
+                                    <CustomButton
+                                        variant="primary"
+                                        onClick={handleRunCode}
+                                        disabled={isRunning || !isConnected}
+                                        className="flex items-center"
+                                    >
+                                        {isRunning ? (
+                                            <Square className="h-4 w-4 mr-1.5" />
+                                        ) : (
+                                            <Play className="h-4 w-4 mr-1.5" />
+                                        )}
+                                        {isRunning ? 'Running...' : 'Run Code'}
+                                    </CustomButton>
+
+                                    {isRunning && (
+                                        <CustomButton
+                                            variant="danger"
+                                            onClick={handleStopCode}
+                                            className="flex items-center"
+                                        >
+                                            <StopCircle className="h-4 w-4 mr-1.5" />
+                                            Stop
+                                        </CustomButton>
                                     )}
-                                    {currentFileId ? 'Update' : 'Save'}
-                                </CustomButton>
-                            </div>
 
-                            <div className="flex items-center space-x-4">
-                                <div className="px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-200">
-                                    <span className="text-sm font-medium text-gray-700 flex items-center">
-                                        {displayFileName}
-                                        {!isFileSaved && <span className="w-2 h-2 rounded-full bg-indigo-500 ml-2"></span>}
-                                    </span>
+                                    <CustomButton
+                                        variant="primary"
+                                        onClick={handleSaveCode}
+                                        disabled={isUpdating}
+                                        className="flex items-center relative"
+                                    >
+                                        {isUpdating ? (
+                                            <LoaderIcon />
+                                        ) : (
+                                            <Save className={`h-4 w-4 mr-1.5 ${showSaveSuccess ? 'animate-pulse text-green-500' : ''}`} />
+                                        )}
+                                        {currentFileId ? 'Update' : 'Save'}
+                                        {showSaveSuccess && (
+                                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                            </span>
+                                        )}
+                                    </CustomButton>
                                 </div>
-                            </div>
 
-                            <div className="flex items-center space-x-3">
-                                <select
-                                    value={language}
-                                    onChange={(e) => setLanguage(e.target.value)}
-                                    className="block rounded-md border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                >
-                                    <option value="python">Python</option>
-                                    <option value="javascript">JavaScript</option>
-                                    <option value="cpp">C++</option>
-                                    <option value="java">Java</option>
-                                </select>
-                                <div className="flex items-center px-3 py-1 rounded-full bg-white shadow-sm border border-gray-200">
-                                    <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} mr-2`} />
-                                    <span className="text-xs font-medium text-gray-600">
-                                        {isConnected ? 'Connected' : 'Reconnecting...'}
-                                    </span>
+                                <div className="flex items-center">
+                                    <div className="file-badge group relative">
+                                        <span className="text-sm font-medium text-gray-700 flex items-center">
+                                            {displayFileName}
+                                            {!isFileSaved && <span className="file-status file-status-unsaved"></span>}
+                                        </span>
+                                        {!isFileSaved && (
+                                            <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                                Unsaved changes
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3">
+                                    <select
+                                        value={language}
+                                        onChange={(e) => setLanguage(e.target.value)}
+                                        className="select block rounded-lg border-gray-200 bg-white text-gray-700 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="python">Python</option>
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="cpp">C++</option>
+                                        <option value="java">Java</option>
+                                    </select>
+                                    <div className="file-badge">
+                                        <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} mr-2`} />
+                                        <span className="text-xs font-medium text-gray-600">
+                                            {isConnected ? 'Connected' : 'Reconnecting...'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                        {/* Editor */}
+                        <div className="neomorphic bg-white rounded-xl overflow-hidden">
                             <Editor
                                 height="450px"
                                 language={language}
@@ -683,23 +746,31 @@ const CodeEditor = ({ showSidebar }) => {
                                     scrollBeyondLastLine: false,
                                     fontFamily: 'JetBrains Mono, Consolas, "Courier New", monospace',
                                     padding: { top: 16 },
+                                    cursorBlinking: 'smooth',
+                                    smoothScrolling: true,
+                                    cursorSmoothCaretAnimation: true,
                                 }}
+                                className="rounded-xl"
                             />
                         </div>
 
+                        {/* Terminal */}
                         <div className="flex flex-col space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-gray-700">Terminal</label>
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRunning ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                    {isRunning ? 'Running' : 'Ready'}
+                                </span>
                             </div>
                             <div
                                 ref={terminalRef}
-                                className="relative h-64 bg-gray-900 rounded-lg shadow-sm border border-gray-700 overflow-hidden"
+                                className="terminal h-64 shadow-lg"
                             >
                                 <pre className="h-full p-4 text-white font-mono text-sm overflow-auto">
                                     {terminal}
                                     {isRunning && (
                                         <div className="flex items-center">
-                                            <span className="text-green-500">{'>'}</span>
+                                            <span className="terminal-prompt">{'>'}</span>
                                             <input
                                                 type="text"
                                                 value={inputValue}
@@ -717,7 +788,7 @@ const CodeEditor = ({ showSidebar }) => {
                                                         }
                                                     }
                                                 }}
-                                                className="flex-1 ml-2 bg-transparent text-white font-mono text-sm focus:outline-none"
+                                                className="flex-1 ml-2 bg-transparent text-green-400 font-mono text-sm focus:outline-none"
                                                 placeholder="Type input and press Enter..."
                                             />
                                         </div>
@@ -727,6 +798,7 @@ const CodeEditor = ({ showSidebar }) => {
                         </div>
                     </div>
 
+                    {/* Save Dialog */}
                     <CustomDialog
                         isOpen={showSaveDialog}
                         onClose={() => {
@@ -734,29 +806,37 @@ const CodeEditor = ({ showSidebar }) => {
                             setFileName('');
                             setIsFileNameExists(false);
                         }}
-                        title="Save Program"
+                        title="Save Your Code"
                     >
                         <div className="space-y-4">
                             <div>
                                 <label htmlFor="fileName" className="block text-sm font-medium text-gray-700 mb-1">
                                     File Name
                                 </label>
-                                <input
-                                    id="fileName"
-                                    type="text"
-                                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
-                                    placeholder="Enter file name"
-                                    value={fileName}
-                                    onChange={handleFileNameChange}
-                                    disabled={isSaving}
-                                />
+                                <div className="relative">
+                                    <input
+                                        id="fileName"
+                                        type="text"
+                                        className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isFileNameExists ? 'border-red-500 pr-10' : 'border-gray-300'}`}
+                                        placeholder="Enter a name for your file"
+                                        value={fileName}
+                                        onChange={handleFileNameChange}
+                                        disabled={isSaving}
+                                    />
+                                    {isFileNameExists && (
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                            <X className="h-5 w-5 text-red-500" />
+                                        </div>
+                                    )}
+                                </div>
                                 {isFileNameExists && (
-                                    <p className="mt-1 text-sm text-red-600">
-                                        This file name already exists. Please choose a different name.
+                                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                                        <X className="h-4 w-4 mr-1" />
+                                        This file name already exists
                                     </p>
                                 )}
                             </div>
-                            <div className="flex justify-end space-x-2">
+                            <div className="flex justify-end space-x-3 pt-2">
                                 <CustomButton
                                     variant="outline"
                                     onClick={() => {
@@ -772,23 +852,34 @@ const CodeEditor = ({ showSidebar }) => {
                                     variant="primary"
                                     onClick={handleSaveNewFile}
                                     disabled={isFileNameExists || !fileName.trim() || isSaving}
+                                    className="relative"
                                 >
-                                    {isSaving ? <LoaderIcon /> : 'Save'}
+                                    {isSaving ? (
+                                        <LoaderIcon />
+                                    ) : (
+                                        <>
+                                            <Save className="h-4 w-4 mr-1.5" />
+                                            Save File
+                                        </>
+                                    )}
                                 </CustomButton>
                             </div>
                         </div>
                     </CustomDialog>
 
+                    {/* New File Dialog */}
                     <CustomDialog
                         isOpen={showNewFileDialog}
                         onClose={() => setShowNewFileDialog(false)}
                         title="Create New File"
                     >
                         <div className="space-y-4">
-                            <p className="text-sm text-gray-600">
-                                You have unsaved changes. Would you like to save them before creating a new file?
-                            </p>
-                            <div className="flex justify-end space-x-2">
+                            <div className="p-4 bg-indigo-50 text-indigo-800 rounded-lg">
+                                <p className="text-sm">
+                                    You have unsaved changes. Would you like to save them before creating a new file?
+                                </p>
+                            </div>
+                            <div className="flex justify-end space-x-3 pt-2">
                                 <CustomButton
                                     variant="outline"
                                     onClick={handleDontSaveAndNew}
@@ -811,6 +902,7 @@ const CodeEditor = ({ showSidebar }) => {
                         </div>
                     </CustomDialog>
 
+                    {/* Delete Confirmation Dialog */}
                     <DeleteConfirmationDialog
                         isOpen={deleteDialogOpen}
                         confirmDelete={confirmDelete}

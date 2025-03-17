@@ -2,18 +2,17 @@ import { wsClients } from "./ExecuteCode.js";
 import { runningProcesses } from "./ExecuteCode.js";
 
 const WebSocketConnection = (wss) => {
-
-    // WebSocket connection handler
     wss.on('connection', (ws, req) => {
         const clientId = new URL(req.url, 'http://localhost').searchParams.get('clientId');
 
         if (!clientId) {
-            ws.close();
+            console.error('Client ID is missing');
+            ws.close(4001, 'Client ID is required');
             return;
         }
 
-        wsClients.set(clientId, ws);
         console.log(`Client connected with ID: ${clientId}`);
+        wsClients.set(clientId, ws);
 
         ws.send(JSON.stringify({
             type: 'system',
@@ -24,7 +23,7 @@ const WebSocketConnection = (wss) => {
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'input') {
-                    const cellId = data.clientId || clientId
+                    const cellId = data.clientId || clientId;
                     const process = runningProcesses.get(cellId);
                     if (process && process.stdin) {
                         process.stdin.write(data.input + '\n');
@@ -44,7 +43,11 @@ const WebSocketConnection = (wss) => {
             }
             wsClients.delete(clientId);
         });
+
+        ws.on('error', (error) => {
+            console.error(`WebSocket error for client ${clientId}:`, error);
+        });
     });
-}
+};
 
 export default WebSocketConnection;
