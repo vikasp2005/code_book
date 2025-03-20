@@ -49,9 +49,9 @@ const DeleteConfirmationDialog = ({ isOpen, onClose, fileName, confirmDelete, is
         };
     }, [isOpen]);
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (inputFileName === fileName) {
-            confirmDelete();
+            await confirmDelete();
             setInputFileName('');
             setError('');
         } else {

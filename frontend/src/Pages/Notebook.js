@@ -1,9 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Editor from "@monaco-editor/react";
-import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash } from "lucide-react";
+import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash, X, Terminal, Code, MoreHorizontal } from "lucide-react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
+import { GenerateUUID } from '../Components/GenerateUUID';
 import Alert from "../Components/Alert";
 
 const SUPPORTED_LANGUAGES = [
@@ -13,27 +15,22 @@ const SUPPORTED_LANGUAGES = [
     { id: 'java', name: 'Java' }
 ];
 
-const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : ((r & 0x3) | 0x8);
-        return v.toString(16);
-    });
-};
-
+// Enhanced Dialog Component with Animation
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity animate-fade-in">
             <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
-                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="fixed inset-0" onClick={onClose} />
+                <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 glass-effect animate-scale-in">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">{title}</h3>
-                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                            <span className="sr-only">Close</span>
-                            ×
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100 p-1"
+                        >
+                            <X className="h-5 w-5" />
                         </button>
                     </div>
                     {children}
@@ -43,36 +40,51 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
     );
 };
 
+// Enhanced Sidebar Component
 const NotebookSidebar = ({ notebooks, onLoad, onDelete, visible }) => {
     return (
-        <div className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${visible ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="flex items-center justify-between p-4 border-b">
-                <h2 className="text-lg font-semibold">Saved Notebooks</h2>
+        <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white/80 backdrop-blur-md shadow-xl transform transition-transform duration-300 ease-in-out ${visible ? 'translate-x-0 animate-slide-right' : '-translate-x-full'} border-r border-gray-200/50`}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h2 className="text-lg font-medium text-gray-800">Saved Notebooks</h2>
+                <FileText className="h-5 w-5 text-blue-500" />
             </div>
             <div className="overflow-y-auto h-full pb-16">
-                {notebooks.map(notebook => (
-                    <div key={notebook._id} className="flex items-center justify-between p-4 hover:bg-gray-100 border-b">
-                        <button
-                            onClick={() => onLoad(notebook._id)}
-                            className="flex items-center flex-1"
-                        >
-                            <FileText className="h-4 w-4 mr-2" />
-                            <span className="truncate">{notebook.name}</span>
-                        </button>
-                        <button
-                            onClick={() => onDelete(notebook._id)}
-                            className="p-1 hover:text-red-600 ml-2"
-                        >
-                            <Trash className="h-4 w-4" />
-                        </button>
+                {notebooks.length === 0 ? (
+                    <div className="p-6 text-center">
+                        <div className="text-gray-400 flex justify-center mb-2">
+                            <FileText className="h-10 w-10" />
+                        </div>
+                        <p className="text-sm text-gray-500">No notebooks saved yet</p>
                     </div>
-                ))}
+                ) : (
+                    notebooks.map((notebook) => (
+                        <div
+                            key={notebook._id}
+                            className="flex items-center justify-between p-3 hover:bg-blue-50 border-b border-gray-100 transition-colors duration-150"
+                        >
+                            <button
+                                onClick={() => onLoad(notebook._id)}
+                                className="flex items-center flex-1 text-left"
+                            >
+                                <FileText className="h-4 w-4 mr-2 text-blue-500" />
+                                <span className="truncate text-gray-700 hover:text-blue-600 transition-colors">{notebook.name}</span>
+                            </button>
+                            <button
+                                onClick={() => onDelete(notebook._id)}
+                                className="p-1.5 rounded-full hover:bg-red-50 hover:text-red-600 transition-colors ml-2 text-gray-400"
+                                aria-label="Delete notebook"
+                            >
+                                <Trash className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
 };
 
-
+// Enhanced Cell Component
 const NotebookCell = ({
     cell,
     onRun,
@@ -91,6 +103,7 @@ const NotebookCell = ({
     isRunning,
 }) => {
     const [inputValue, setInputValue] = useState('');
+    const [isExpanded, setIsExpanded] = useState(true);
     const terminalRef = useRef(null);
 
     const handleRun = async () => {
@@ -118,38 +131,48 @@ const NotebookCell = ({
         }
     };
 
+    useEffect(() => {
+        if (terminalRef.current) {
+            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+    }, [cell.output]);
+
     return (
-        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-100 transition-all duration-300 transform hover:shadow-lg animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2 flex-1">
                     <input
                         type="text"
                         value={cell.name}
                         onChange={(e) => onNameChange(cell.id, e.target.value)}
                         placeholder="Cell name (optional)"
-                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 w-48"
+                        className="text-sm border-gray-200 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48 transition-all"
                     />
-                    <button
-                        onClick={handleRun}
-                        disabled={isRunning}
-                        className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                    >
-                        <Play className="h-4 w-4 mr-1" />
-                        Run
-                    </button>
-                    {isRunning && (
+                    <div className="flex items-center space-x-1">
                         <button
-                            onClick={handleStop}
-                            className="inline-flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                            onClick={handleRun}
+                            disabled={isRunning}
+                            className={`inline-flex items-center px-3 py-1.5 text-sm rounded-md transition-colors ${isRunning
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}`}
                         >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Stop
+                            <Play className="h-3.5 w-3.5 mr-1.5" />
+                            {isRunning ? 'Running...' : 'Run'}
                         </button>
-                    )}
+                        {isRunning && (
+                            <button
+                                onClick={handleStop}
+                                className="inline-flex items-center px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm transition-colors"
+                            >
+                                <StopCircle className="h-3.5 w-3.5 mr-1.5" />
+                                Stop
+                            </button>
+                        )}
+                    </div>
                     <select
                         value={cell.language}
                         onChange={(e) => onLanguageChange(cell.id, e.target.value)}
-                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                        className="text-sm border-gray-200 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white transition-all"
                     >
                         {isDefaultLanguageEnabled && (
                             <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
@@ -160,13 +183,23 @@ const NotebookCell = ({
                             </option>
                         ))}
                     </select>
-                    <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
+                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        Cell {cell.index + 1}
+                    </span>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1">
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                        aria-label={isExpanded ? "Collapse cell" : "Expand cell"}
+                    >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
                     {!isFirst && (
                         <button
                             onClick={() => onMoveUp(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                            aria-label="Move cell up"
                         >
                             <ChevronUp className="h-4 w-4" />
                         </button>
@@ -174,63 +207,81 @@ const NotebookCell = ({
                     {!isLast && (
                         <button
                             onClick={() => onMoveDown(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                            aria-label="Move cell down"
                         >
                             <ChevronDown className="h-4 w-4" />
                         </button>
                     )}
                     <button
                         onClick={() => onDelete(cell.id)}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                        aria-label="Delete cell"
                     >
                         <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
             </div>
 
-            <Editor
-                height={cell.height}
-                language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
-                value={cell.code}
-                onChange={(value) => onChange(cell.id, value || '')}
-                theme="vs-dark"
-                options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    lineNumbers: 'on',
-                    automaticLayout: true,
-                }}
-            />
+            {isExpanded && (
+                <>
+                    <div className="relative mb-3">
+                        <div className="absolute left-0 top-0 h-full w-1 bg-blue-100 rounded-l-md"></div>
+                        <Editor
+                            height={cell.height}
+                            language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
+                            value={cell.code}
+                            onChange={(value) => onChange(cell.id, value || '')}
+                            theme="vs-dark"
+                            options={{
+                                minimap: { enabled: false },
+                                fontSize: 14,
+                                lineNumbers: 'on',
+                                automaticLayout: true,
+                                scrollBeyondLastLine: false,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                padding: { top: 10 },
+                            }}
+                            className="rounded-md overflow-hidden"
+                        />
+                    </div>
 
-            <div className="mt-2 bg-gray-900 rounded p-2">
-                <div
-                    ref={terminalRef}
-                    className="h-32 font-mono text-sm text-white overflow-auto"
-                >
-                    <pre className="whitespace-pre-wrap">{cell.output}</pre>
-                    {isRunning && (
-                        <div className="flex items-center">
-                            <span className="text-green-500">{'>'}</span>
-                            <input
-                                type="text"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyPress={handleInputKeyPress}
-                                className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
-                                placeholder="Type input and press Enter..."
-                            />
+                    <div className="relative">
+                        <div className="flex items-center mb-2">
+                            <Terminal className="h-4 w-4 text-gray-500 mr-2" />
+                            <span className="text-xs font-medium text-gray-600">Output</span>
                         </div>
-                    )}
-                </div>
-            </div>
+                        <div
+                            ref={terminalRef}
+                            className="h-32 bg-gray-900 rounded-md p-3 overflow-auto font-mono text-sm scrollbar-thin text-white"
+                        >
+                            <pre className="whitespace-pre-wrap">{cell.output}</pre>
+                            {isRunning && (
+                                <div className="flex items-center mt-1 border-t border-gray-700 pt-1">
+                                    <span className="text-green-500 mr-1">❯</span>
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyPress={handleInputKeyPress}
+                                        className="flex-1 bg-transparent text-white focus:outline-none"
+                                        placeholder="Type input and press Enter..."
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
 
+// Main Notebook App Component
 const NotebookApp = ({ showSidebar }) => {
     const [cells, setCells] = useState([
         {
-            id: generateUUID(),
+            id: GenerateUUID(),
             code: '',
             language: 'python',
             height: 50,
@@ -256,10 +307,8 @@ const NotebookApp = ({ showSidebar }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const wsRef = useRef(null);
-    const clientId = useRef(generateUUID());
+    const clientId = useRef(GenerateUUID());
     const [runningCells, setRunningCells] = useState({});
-
-
 
     useEffect(() => {
         const connectWebSocket = () => {
@@ -396,15 +445,11 @@ const NotebookApp = ({ showSidebar }) => {
         setHasUnsavedChanges(true);
     }, [cells]);
 
-
-
     useEffect(() => {
         if (user) {
             fetchNotebooks();
         }
     }, [user]);
-
-
 
     useEffect(() => {
         if (user && location.state?.showSaveDialog) {
@@ -426,8 +471,6 @@ const NotebookApp = ({ showSidebar }) => {
         }
     }, [user, location.state, navigate]);
 
-
-    // Add these methods to the NotebookApp component
     const checkFileNameExists = async (name) => {
         try {
             if (!user) return false;
@@ -592,7 +635,7 @@ const NotebookApp = ({ showSidebar }) => {
             });
             setCells(response.data.cells.map(cell => ({
                 ...cell,
-                id: cell.id || generateUUID()
+                id: cell.id || GenerateUUID()
             })));
 
             setNotebookName(response.data.name);
@@ -620,8 +663,6 @@ const NotebookApp = ({ showSidebar }) => {
         }
     };
 
-
-
     const createNewNotebook = () => {
         if (hasUnsavedChanges) {
             setShowNewNotebookDialog(true);
@@ -632,7 +673,7 @@ const NotebookApp = ({ showSidebar }) => {
 
     const resetNotebook = () => {
         setCells([{
-            id: generateUUID(),
+            id: GenerateUUID(),
             code: '',
             language: defaultLanguage,
             height: 50,
@@ -647,10 +688,8 @@ const NotebookApp = ({ showSidebar }) => {
         showAlert('Created new notebook', 'success');
     };
 
-
-
     const showAlert = (message, type = 'info') => {
-        const id = generateUUID();
+        const id = GenerateUUID();
         setAlerts(prev => [...prev, { id, message, type }]);
         setTimeout(() => {
             setAlerts(prev => prev.filter(alert => alert.id !== id));
@@ -659,7 +698,7 @@ const NotebookApp = ({ showSidebar }) => {
 
     const addCell = () => {
         const newCell = {
-            id: generateUUID(),
+            id: GenerateUUID(),
             code: '',
             height: 50,
             language: defaultLanguage,
@@ -695,10 +734,6 @@ const NotebookApp = ({ showSidebar }) => {
         });
     };
 
-
-
-
-
     const updateCellCode = (id, newCode) => {
         const lines = newCode.split('\n').length;
         setCells(prev =>
@@ -723,8 +758,6 @@ const NotebookApp = ({ showSidebar }) => {
             )
         );
     };
-
-
 
     const handleDefaultLanguageChange = (newLanguage) => {
         setDefaultLanguage(newLanguage);
@@ -754,8 +787,7 @@ const NotebookApp = ({ showSidebar }) => {
 
     return (
         <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
-
-            <div className="min-h-screen bg-gray-50 py-8 relative">
+            <div className="min-h-screen bg-gray-50 py-6 relative">
                 <NotebookSidebar
                     notebooks={savedNotebooks}
                     onLoad={loadNotebook}
@@ -763,104 +795,103 @@ const NotebookApp = ({ showSidebar }) => {
                     visible={showSidebar}
                 />
 
-                <div className="max-w-5xl mx-auto px-4">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6">
                     <div className="fixed top-4 right-4 z-50 space-y-2">
                         {alerts.map(alert => (
                             <Alert key={alert.id} type={alert.type} message={alert.message} />
                         ))}
                     </div>
 
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center space-x-4">
-                            <input
-                                type="text"
-                                value={notebookName}
-                                onChange={(e) => {
-                                    setNotebookName(e.target.value);
-                                    setHasUnsavedChanges(true);
-                                }}
-                                className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
-                            />
-                            {hasUnsavedChanges && (
-                                <span className="text-sm text-gray-500">(Unsaved changes)</span>
-                            )}
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
+                    <div className="bg-white rounded-xl shadow-md p-5 mb-6 border border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                            <div className="flex items-center">
+                                <p
+                                    className="text-xl sm:text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-transparent  focus:border-blue-500 focus:outline-none transition-all w-full sm:w-auto"
+                                >{notebookName}</p>
+                                {hasUnsavedChanges && (
+                                    <span className="ml-2 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse">
+                                        Unsaved changes
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
                                 <label className="flex items-center space-x-2 cursor-pointer">
                                     <input
                                         type="checkbox"
                                         checked={isDefaultLanguageEnabled}
-                                        onChange={() => toggleDefaultLanguage()}
-                                        className="form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                        onChange={toggleDefaultLanguage}
+                                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
                                     />
                                     <span className="text-sm text-gray-600">Use Default Language</span>
                                 </label>
+                                {isDefaultLanguageEnabled && (
+                                    <div className="flex items-center space-x-2">
+                                        <span className="text-sm text-gray-600">Default:</span>
+                                        <select
+                                            value={defaultLanguage}
+                                            onChange={(e) => handleDefaultLanguageChange(e.target.value)}
+                                            className="text-sm border-gray-200 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                            {SUPPORTED_LANGUAGES.map(lang => (
+                                                <option key={lang.id} value={lang.id}>
+                                                    {lang.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
-                            {isDefaultLanguageEnabled && (
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-gray-600">Default:</span>
-                                    <select
-                                        value={defaultLanguage}
-                                        onChange={(e) => handleDefaultLanguageChange(e.target.value)}
-                                        className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        {SUPPORTED_LANGUAGES.map(lang => (
-                                            <option key={lang.id} value={lang.id}>
-                                                {lang.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 justify-between items-center">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={createNewNotebook}
+                                    className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-md border border-gray-300 hover:bg-gray-50 shadow-sm transition-all"
+                                >
+                                    <FileText className="h-4 w-4 mr-1.5" />
+                                    New Notebook
+                                </button>
+                                <button
+                                    onClick={handleSaveNotebook}
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all"
+                                >
+                                    <Save className="h-4 w-4 mr-1.5" />
+                                    Save Notebook
+                                </button>
+                            </div>
+                            <button
+                                onClick={addCell}
+                                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition-all"
+                            >
+                                <Plus className="h-4 w-4 mr-1.5" />
+                                Add Cell
+                            </button>
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center space-x-2">
-                            <button
-                                onClick={createNewNotebook}
-                                className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded border hover:bg-gray-50"
-                            >
-                                <FileText className="h-4 w-4 mr-1" />
-                                New Notebook
-                            </button>
-                            <button
-                                onClick={handleSaveNotebook}
-                                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                                <Save className="h-4 w-4 mr-1" />
-                                Save Notebook
-                            </button>
-                        </div>
-                        <button
-                            onClick={addCell}
-                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Cell
-                        </button>
+                    <div className="space-y-6">
+                        {cells.map((cell, index) => (
+                            <NotebookCell
+                                key={cell.id}
+                                cell={cell}
+                                onRun={handleRun}
+                                onStop={handleStop}
+                                onDelete={deleteCell}
+                                onMoveUp={() => moveCell(cell.id, 'up')}
+                                onMoveDown={() => moveCell(cell.id, 'down')}
+                                isFirst={index === 0}
+                                isLast={index === cells.length - 1}
+                                onChange={updateCellCode}
+                                onLanguageChange={updateCellLanguage}
+                                onNameChange={updateCellName}
+                                defaultLanguage={defaultLanguage}
+                                isDefaultLanguageEnabled={isDefaultLanguageEnabled}
+                                sendWebSocketMessage={sendWebSocketMessage}
+                                isRunning={runningCells[cell.id]}
+                            />
+                        ))}
                     </div>
-
-                    {cells.map((cell, index) => (
-                        <NotebookCell
-                            cell={cell}
-                            onRun={handleRun}
-                            onStop={handleStop}
-                            onDelete={deleteCell}
-                            onMoveUp={() => moveCell(cell.id, 'up')}
-                            onMoveDown={() => moveCell(cell.id, 'down')}
-                            isFirst={index === 0}
-                            isLast={index === cells.length - 1}
-                            onChange={updateCellCode}
-                            onLanguageChange={updateCellLanguage}
-                            onNameChange={updateCellName}
-                            defaultLanguage={defaultLanguage}
-                            isDefaultLanguageEnabled={isDefaultLanguageEnabled}
-                            sendWebSocketMessage={sendWebSocketMessage}
-                            isRunning={runningCells[cell.id]}
-                        />
-                    ))}
 
                     <CustomDialog
                         isOpen={showNewNotebookDialog}
@@ -874,19 +905,20 @@ const NotebookApp = ({ showSidebar }) => {
                             <div className="flex justify-end space-x-2">
                                 <button
                                     onClick={resetNotebook}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
                                 >
                                     Don't Save
                                 </button>
                                 <button
                                     onClick={handleSaveNotebook}
-                                    className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700"
+                                    className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
                                 >
                                     Save & Create New
                                 </button>
                             </div>
                         </div>
                     </CustomDialog>
+
                     <CustomDialog
                         isOpen={showSaveDialog}
                         onClose={() => {
@@ -894,29 +926,37 @@ const NotebookApp = ({ showSidebar }) => {
                             setNotebookFileName('');
                             setIsFileNameExists(false);
                         }}
-                        title="Save Notebook"
+                        title="Save Your Notebook"
                     >
                         <div className="space-y-4">
                             <div>
                                 <label htmlFor="notebookFileName" className="block text-sm font-medium text-gray-700 mb-1">
                                     Notebook Name
                                 </label>
-                                <input
-                                    id="notebookFileName"
-                                    type="text"
-                                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${isFileNameExists ? 'border-red-500' : 'border-gray-300'}`}
-                                    placeholder="Enter notebook name"
-                                    value={notebookFileName}
-                                    onChange={handleFileNameChange}
-                                    disabled={isSaving}
-                                />
+                                <div className="relative">
+                                    <input
+                                        id="notebookFileName"
+                                        type="text"
+                                        className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isFileNameExists ? 'border-red-500 pr-10' : 'border-gray-300'}`}
+                                        placeholder="Enter a name for your notebook"
+                                        value={notebookFileName}
+                                        onChange={handleFileNameChange}
+                                        disabled={isSaving}
+                                    />
+                                    {isFileNameExists && (
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                            <X className="h-5 w-5 text-red-500" />
+                                        </div>
+                                    )}
+                                </div>
                                 {isFileNameExists && (
-                                    <p className="mt-1 text-sm text-red-600">
-                                        This notebook name already exists. Please choose a different name.
+                                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                                        <X className="h-4 w-4 mr-1" />
+                                        This notebook name already exists
                                     </p>
                                 )}
                             </div>
-                            <div className="flex justify-end space-x-2">
+                            <div className="flex justify-end space-x-3 pt-2">
                                 <button
                                     onClick={() => {
                                         setShowSaveDialog(false);
@@ -924,14 +964,14 @@ const NotebookApp = ({ showSidebar }) => {
                                         setIsFileNameExists(false);
                                     }}
                                     disabled={isSaving}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveNotebookWithFileName}
                                     disabled={isFileNameExists || !notebookFileName.trim() || isSaving}
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                                 >
                                     {isSaving ? (
                                         <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -939,18 +979,17 @@ const NotebookApp = ({ showSidebar }) => {
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                         </svg>
                                     ) : (
-                                        <Save className="h-4 w-4 mr-1" />
+                                        <Save className="h-4 w-4 mr-1.5" />
                                     )}
-                                    Save
+                                    Save Notebook
                                 </button>
                             </div>
                         </div>
                     </CustomDialog>
-
                 </div>
             </div>
         </div>
     );
 };
 
-export default NotebookApp;
+export default NotebookApp

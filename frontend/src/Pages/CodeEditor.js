@@ -127,12 +127,7 @@ const CodeEditor = ({ showSidebar }) => {
         }
     }, [code]);
 
-    useEffect(() => {
-        if (code !== localStorage.getItem('unsavedCode')) {
-            setIsFileSaved(false);
-        }
-        localStorage.setItem('unsavedCode', code);
-    }, [code]);
+
 
     // WebSocket connection effect
     useEffect(() => {
@@ -218,7 +213,7 @@ const CodeEditor = ({ showSidebar }) => {
         setCurrentFileId(null);
         setFileName('');
         setDisplayFileName('Untitled File');
-        setIsFileSaved(true);
+        setIsFileSaved(false);
         localStorage.removeItem('unsavedCode');
     };
 
@@ -229,11 +224,12 @@ const CodeEditor = ({ showSidebar }) => {
                 { withCredentials: true }
             );
             const { code, language, fileName } = response.data;
+            await setIsFileSaved(true);
+            console.log(isFileSaved)
             setCode(code);
             setLanguage(language);
             setCurrentFileId(id);
             setDisplayFileName(fileName);
-            setIsFileSaved(true);
             setIsFileDeleted(false);
         } catch (error) {
             console.error('Failed to load program:', error);
@@ -307,7 +303,7 @@ const CodeEditor = ({ showSidebar }) => {
             }, { withCredentials: true });
 
             setIsFileSaved(true);
-            showSaveSuccess(true);
+            setShowSaveSuccess(true);
             setTimeout(() => setShowSaveSuccess(false), 2000);
             showAlert('success', 'Code updated successfully');
             await fetchSavedPrograms();
@@ -358,6 +354,8 @@ const CodeEditor = ({ showSidebar }) => {
             setFileName('');
             setIsFileNameExists(false);
             setIsFileSaved(true);
+            setCurrentFileId(response.data.id);
+
             setIsFileDeleted(false);
             setShowSaveSuccess(true);
             setTimeout(() => setShowSaveSuccess(false), 2000);
@@ -371,7 +369,6 @@ const CodeEditor = ({ showSidebar }) => {
             }
 
             localStorage.removeItem('unsavedCode');
-            await fetchSavedPrograms();
         } catch (error) {
             showAlert('error', error.message);
         } finally {
@@ -443,7 +440,7 @@ const CodeEditor = ({ showSidebar }) => {
             return;
         }
 
-        if (code.trim() && (!isFileSaved || currentFileId)) {
+        if (code.trim() && (!isFileSaved || !currentFileId)) {
             setShowNewFileDialog(true); // Show dialog for unsaved changes or updates
             return;
         }
@@ -649,7 +646,7 @@ const CodeEditor = ({ showSidebar }) => {
                                     <CustomButton
                                         variant="primary"
                                         onClick={handleRunCode}
-                                        disabled={isRunning || !isConnected}
+                                        disabled={!code.trim() || !isConnected || isRunning} // Disable if no code, not connected, or already running
                                         className="flex items-center"
                                     >
                                         {isRunning ? (
@@ -674,7 +671,7 @@ const CodeEditor = ({ showSidebar }) => {
                                     <CustomButton
                                         variant="primary"
                                         onClick={handleSaveCode}
-                                        disabled={isUpdating}
+                                        disabled={!code.trim() || isFileSaved || isUpdating} // Disable if no code, already saved, or updating
                                         className="flex items-center relative"
                                     >
                                         {isUpdating ? (
