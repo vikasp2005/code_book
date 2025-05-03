@@ -1,4 +1,6 @@
+// Notebook.Model.js
 import mongoose from "mongoose";
+
 const NotebookSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -6,7 +8,13 @@ const NotebookSchema = new mongoose.Schema({
     },
     cells: [{
         id: String,
+        type: {
+            type: String,
+            enum: ['code', 'text'],
+            default: 'code'
+        },
         code: String,
+        content: String, // For text cells
         output: String,
         language: String,
         name: String,
@@ -26,6 +34,11 @@ const NotebookSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+});
+
+NotebookSchema.pre('save', function (next) {
+    this.updatedAt = Date.now();
+    next();
 });
 
 export const Notebook = mongoose.model('Notebook', NotebookSchema);

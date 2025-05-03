@@ -1,12 +1,13 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Editor from "@monaco-editor/react";
-import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash, X, Terminal, Code, MoreHorizontal } from "lucide-react";
+import { Play, Trash2, ChevronUp, ChevronDown, Plus, StopCircle, Save, FileText, Trash, X, FolderOpen, Type } from "lucide-react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
-import { GenerateUUID } from '../Components/GenerateUUID';
 import Alert from "../Components/Alert";
+import DeleteConfirmationDialog from '../Components/DeleteConfirmationDialog';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const SUPPORTED_LANGUAGES = [
     { id: 'python', name: 'Python' },
@@ -15,22 +16,46 @@ const SUPPORTED_LANGUAGES = [
     { id: 'java', name: 'Java' }
 ];
 
-// Enhanced Dialog Component with Animation
+const CELL_TYPES = [
+    { id: 'code', name: 'Code' },
+    { id: 'text', name: 'Text' }
+];
+
+const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+        return v.toString(16);
+    });
+};
+
 const CustomDialog = ({ isOpen, onClose, title, children }) => {
+    const [animateOut, setAnimateOut] = useState(false);
+
+    const handleClose = () => {
+        setAnimateOut(true);
+        setTimeout(() => {
+            setAnimateOut(false);
+            onClose();
+        }, 300);
+    };
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity animate-fade-in">
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div className="fixed inset-0" onClick={onClose} />
-                <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 glass-effect animate-scale-in">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 backdrop-blur-sm transition-opacity flex items-center justify-center">
+            <div className="min-h-screen items-center justify-center p-4 flex" onClick={handleClose}>
+                <div
+                    className={`relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 transform transition-all duration-300 ${animateOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">{title}</h3>
+                        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
                         <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100 p-1"
+                            onClick={handleClose}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                         >
-                            <X className="h-5 w-5" />
+                            <X className="h-4 w-4" />
                         </button>
                     </div>
                     {children}
@@ -40,51 +65,180 @@ const CustomDialog = ({ isOpen, onClose, title, children }) => {
     );
 };
 
-// Enhanced Sidebar Component
-const NotebookSidebar = ({ notebooks, onLoad, onDelete, visible }) => {
+const NotebookSidebar = ({ notebooks, onLoad, onDelete, visible, loadMore, hasMore }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const observer = useRef();
+
+    const lastNotebookRef = (node) => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setIsLoading(true);
+                loadMore().finally(() => setIsLoading(false));
+            }
+        });
+        if (node) observer.current.observe(node);
+    };
+
     return (
-        <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white/80 backdrop-blur-md shadow-xl transform transition-transform duration-300 ease-in-out ${visible ? 'translate-x-0 animate-slide-right' : '-translate-x-full'} border-r border-gray-200/50`}>
+        <div
+            className={`fixed inset-y-0 left-0 z-30 w-64 glass-card border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out ${visible ? 'translate-x-0' : '-translate-x-full'}`}
+        >
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
                 <h2 className="text-lg font-medium text-gray-800">Saved Notebooks</h2>
-                <FileText className="h-5 w-5 text-blue-500" />
+                <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                    {notebooks.length} notebooks
+                </span>
             </div>
             <div className="overflow-y-auto h-full pb-16">
                 {notebooks.length === 0 ? (
                     <div className="p-6 text-center">
                         <div className="text-gray-400 flex justify-center mb-2">
-                            <FileText className="h-10 w-10" />
+                            <FolderOpen className="h-10 w-10" />
                         </div>
                         <p className="text-sm text-gray-500">No notebooks saved yet</p>
                     </div>
                 ) : (
-                    notebooks.map((notebook) => (
-                        <div
-                            key={notebook._id}
-                            className="flex items-center justify-between p-3 hover:bg-blue-50 border-b border-gray-100 transition-colors duration-150"
-                        >
-                            <button
-                                onClick={() => onLoad(notebook._id)}
-                                className="flex items-center flex-1 text-left"
+                    <div className="divide-y divide-gray-100">
+                        {notebooks.map((notebook, index) => (
+                            <div
+                                key={notebook._id}
+                                ref={index === notebooks.length - 1 ? lastNotebookRef : null}
+                                className="flex items-center justify-between p-3 hover:bg-indigo-50 transition-colors duration-150"
                             >
-                                <FileText className="h-4 w-4 mr-2 text-blue-500" />
-                                <span className="truncate text-gray-700 hover:text-blue-600 transition-colors">{notebook.name}</span>
-                            </button>
-                            <button
-                                onClick={() => onDelete(notebook._id)}
-                                className="p-1.5 rounded-full hover:bg-red-50 hover:text-red-600 transition-colors ml-2 text-gray-400"
-                                aria-label="Delete notebook"
-                            >
-                                <Trash className="h-4 w-4" />
-                            </button>
-                        </div>
-                    ))
+                                <button
+                                    onClick={() => onLoad(notebook._id)}
+                                    className="flex items-center flex-1 text-left"
+                                >
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-100 text-indigo-600 mr-3">
+                                        <FileText className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="truncate text-gray-700 font-medium">{notebook.name}</p>
+                                        <p className="text-xs text-gray-500">
+                                            {new Date(notebook.updatedAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(notebook._id);
+                                    }}
+                                    className="p-1.5 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors ml-2 text-gray-400"
+                                    aria-label={`Delete ${notebook.name}`}
+                                >
+                                    <Trash className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                        {isLoading && (
+                            <div className="flex justify-center p-4">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </div>
     );
 };
 
-// Enhanced Cell Component
+const TextCell = ({
+    cell,
+    onDelete,
+    onMoveUp,
+    onMoveDown,
+    isFirst,
+    isLast,
+    onChange,
+    onNameChange
+}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [content, setContent] = useState(cell.content || '');
+
+    const handleSave = () => {
+        onChange(cell.id, content);
+        setIsEditing(false);
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2 flex-1 flex-wrap gap-2">
+                    <input
+                        type="text"
+                        value={cell.name}
+                        onChange={(e) => onNameChange(cell.id, e.target.value)}
+                        placeholder="Cell name (optional)"
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48"
+                    />
+                    <span className="text-sm text-gray-500">Text Cell {cell.index + 1}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    {!isFirst && (
+                        <button
+                            onClick={() => onMoveUp(cell.id)}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            <ChevronUp className="h-4 w-4" />
+                        </button>
+                    )}
+                    {!isLast && (
+                        <button
+                            onClick={() => onMoveDown(cell.id)}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            <ChevronDown className="h-4 w-4" />
+                        </button>
+                    )}
+                    <button
+                        onClick={() => onDelete(cell.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            {isEditing ? (
+                <div className="space-y-2">
+                    <textarea
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className="w-full h-32 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Enter your markdown text here..."
+                    />
+                    <div className="flex justify-end space-x-2">
+                        <button
+                            onClick={() => setIsEditing(false)}
+                            className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div
+                    className="prose max-w-none p-4 bg-gray-50 rounded-lg cursor-pointer"
+                    onClick={() => setIsEditing(true)}
+                >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {cell.content || '*Click to edit*'}
+                    </ReactMarkdown>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const NotebookCell = ({
     cell,
     onRun,
@@ -101,9 +255,9 @@ const NotebookCell = ({
     isDefaultLanguageEnabled,
     sendWebSocketMessage,
     isRunning,
+    onChangeType
 }) => {
     const [inputValue, setInputValue] = useState('');
-    const [isExpanded, setIsExpanded] = useState(true);
     const terminalRef = useRef(null);
 
     const handleRun = async () => {
@@ -131,48 +285,50 @@ const NotebookCell = ({
         }
     };
 
-    useEffect(() => {
-        if (terminalRef.current) {
-            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-        }
-    }, [cell.output]);
-
     return (
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-100 transition-all duration-300 transform hover:shadow-lg animate-fade-in">
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-2 flex-1">
+        <div className="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2 flex-1 flex-wrap gap-2">
                     <input
                         type="text"
                         value={cell.name}
                         onChange={(e) => onNameChange(cell.id, e.target.value)}
                         placeholder="Cell name (optional)"
-                        className="text-sm border-gray-200 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48 transition-all"
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48"
                     />
-                    <div className="flex items-center space-x-1">
+                    <button
+                        onClick={handleRun}
+                        disabled={isRunning}
+                        className="inline-flex items-center px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
+                    >
+                        <Play className="h-4 w-4 mr-1" />
+                        Run
+                    </button>
+                    {isRunning && (
                         <button
-                            onClick={handleRun}
-                            disabled={isRunning}
-                            className={`inline-flex items-center px-3 py-1.5 text-sm rounded-md transition-colors ${isRunning
-                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}`}
+                            onClick={handleStop}
+                            className="inline-flex items-center px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                         >
-                            <Play className="h-3.5 w-3.5 mr-1.5" />
-                            {isRunning ? 'Running...' : 'Run'}
+                            <StopCircle className="h-4 w-4 mr-1" />
+                            Stop
                         </button>
-                        {isRunning && (
-                            <button
-                                onClick={handleStop}
-                                className="inline-flex items-center px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm transition-colors"
-                            >
-                                <StopCircle className="h-3.5 w-3.5 mr-1.5" />
-                                Stop
-                            </button>
-                        )}
-                    </div>
+                    )}
+                    <select
+                        value={cell.type}
+                        onChange={(e) => onChangeType(cell.id, e.target.value)}
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                        {CELL_TYPES.map(type => (
+                            <option key={type.id} value={type.id}>
+                                {type.name}
+                            </option>
+                        ))}
+                    </select>
                     <select
                         value={cell.language}
                         onChange={(e) => onLanguageChange(cell.id, e.target.value)}
-                        className="text-sm border-gray-200 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white transition-all"
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        disabled={cell.type !== 'code'}
                     >
                         {isDefaultLanguageEnabled && (
                             <option value={defaultLanguage}>Use Default ({defaultLanguage})</option>
@@ -183,23 +339,13 @@ const NotebookCell = ({
                             </option>
                         ))}
                     </select>
-                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                        Cell {cell.index + 1}
-                    </span>
+                    <span className="text-sm text-gray-500">Cell {cell.index + 1}</span>
                 </div>
-                <div className="flex items-center space-x-1">
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                        aria-label={isExpanded ? "Collapse cell" : "Expand cell"}
-                    >
-                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
+                <div className="flex items-center space-x-2">
                     {!isFirst && (
                         <button
                             onClick={() => onMoveUp(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                            aria-label="Move cell up"
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                             <ChevronUp className="h-4 w-4" />
                         </button>
@@ -207,64 +353,58 @@ const NotebookCell = ({
                     {!isLast && (
                         <button
                             onClick={() => onMoveDown(cell.id)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                            aria-label="Move cell down"
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                             <ChevronDown className="h-4 w-4" />
                         </button>
                     )}
                     <button
                         onClick={() => onDelete(cell.id)}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                        aria-label="Delete cell"
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     >
                         <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
             </div>
 
-            {isExpanded && (
+            {cell.type === 'code' ? (
                 <>
-                    <div className="relative mb-3">
-                        <div className="absolute left-0 top-0 h-full w-1 bg-blue-100 rounded-l-md"></div>
-                        <Editor
-                            height={cell.height}
-                            language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
-                            value={cell.code}
-                            onChange={(value) => onChange(cell.id, value || '')}
-                            theme="vs-dark"
-                            options={{
-                                minimap: { enabled: false },
-                                fontSize: 14,
-                                lineNumbers: 'on',
-                                automaticLayout: true,
-                                scrollBeyondLastLine: false,
-                                fontFamily: 'JetBrains Mono, monospace',
-                                padding: { top: 10 },
-                            }}
-                            className="rounded-md overflow-hidden"
-                        />
-                    </div>
+                    <Editor
+                        height={cell.height}
+                        language={cell.language === defaultLanguage ? defaultLanguage : cell.language}
+                        value={cell.code}
+                        onChange={(value) => onChange(cell.id, value || '')}
+                        theme="vs-dark"
+                        options={{
+                            minimap: { enabled: false },
+                            fontSize: 14,
+                            lineNumbers: 'on',
+                            automaticLayout: true,
+                            scrollBeyondLastLine: false,
+                            fontFamily: 'JetBrains Mono, Consolas, "Courier New", monospace',
+                            padding: { top: 16 },
+                            cursorBlinking: 'smooth',
+                            smoothScrolling: true,
+                            cursorSmoothCaretAnimation: true,
+                        }}
+                        className="rounded-lg"
+                    />
 
-                    <div className="relative">
-                        <div className="flex items-center mb-2">
-                            <Terminal className="h-4 w-4 text-gray-500 mr-2" />
-                            <span className="text-xs font-medium text-gray-600">Output</span>
-                        </div>
+                    <div className="mt-2 bg-gray-900 rounded-lg p-3">
                         <div
                             ref={terminalRef}
-                            className="h-32 bg-gray-900 rounded-md p-3 overflow-auto font-mono text-sm scrollbar-thin text-white"
+                            className="h-32 font-mono text-sm text-white overflow-auto"
                         >
                             <pre className="whitespace-pre-wrap">{cell.output}</pre>
                             {isRunning && (
-                                <div className="flex items-center mt-1 border-t border-gray-700 pt-1">
-                                    <span className="text-green-500 mr-1">❯</span>
+                                <div className="flex items-center">
+                                    <span className="text-green-500">{'>'}</span>
                                     <input
                                         type="text"
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}
                                         onKeyPress={handleInputKeyPress}
-                                        className="flex-1 bg-transparent text-white focus:outline-none"
+                                        className="flex-1 ml-2 bg-transparent text-white focus:outline-none"
                                         placeholder="Type input and press Enter..."
                                     />
                                 </div>
@@ -272,16 +412,22 @@ const NotebookCell = ({
                         </div>
                     </div>
                 </>
+            ) : (
+                <div className="prose max-w-none p-4 bg-gray-50 rounded-lg">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {cell.content || '*This is a text cell*'}
+                    </ReactMarkdown>
+                </div>
             )}
         </div>
     );
 };
 
-// Main Notebook App Component
 const NotebookApp = ({ showSidebar }) => {
     const [cells, setCells] = useState([
         {
-            id: GenerateUUID(),
+            id: generateUUID(),
+            type: 'code',
             code: '',
             language: 'python',
             height: 50,
@@ -293,22 +439,28 @@ const NotebookApp = ({ showSidebar }) => {
     const [alerts, setAlerts] = useState([]);
     const [defaultLanguage, setDefaultLanguage] = useState('python');
     const [isDefaultLanguageEnabled, setIsDefaultLanguageEnabled] = useState(true);
-    const [showNewNotebookDialog, setShowNewNotebookDialog] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [notebookName, setNotebookName] = useState('Untitled Notebook');
     const [savedNotebooks, setSavedNotebooks] = useState([]);
     const [currentNotebookId, setCurrentNotebookId] = useState(null);
     const { user } = useAuth();
-    const [isResetNotebook, setIsResetNotebook] = useState(false);
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [notebookFileName, setNotebookFileName] = useState('');
     const [isFileNameExists, setIsFileNameExists] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [showNewNotebookDialog, setShowNewNotebookDialog] = useState(false);
+    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+    const [programToDelete, setProgramToDelete] = useState(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const wsRef = useRef(null);
-    const clientId = useRef(GenerateUUID());
+    const clientId = useRef(generateUUID());
     const [runningCells, setRunningCells] = useState({});
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingNotebooks, setIsLoadingNotebooks] = useState(false);
 
     useEffect(() => {
         const connectWebSocket = () => {
@@ -320,7 +472,6 @@ const NotebookApp = ({ showSidebar }) => {
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
-                console.log(message)
                 const cellId = message.clientId;
                 const data = message.data;
                 const type = message.type;
@@ -374,11 +525,7 @@ const NotebookApp = ({ showSidebar }) => {
                 )
             );
         }
-
-    }
-
-
-
+    };
 
     const handleRun = async (cellId, code, language) => {
         try {
@@ -435,7 +582,6 @@ const NotebookApp = ({ showSidebar }) => {
             showAlert('Execution stopped', 'success');
         } catch (error) {
             setRunningCells(prev => ({ ...prev, [cellId]: false }));
-
             showAlert(error.message, 'error');
             throw error;
         }
@@ -445,29 +591,42 @@ const NotebookApp = ({ showSidebar }) => {
         setHasUnsavedChanges(true);
     }, [cells]);
 
-    useEffect(() => {
-        if (user) {
-            fetchNotebooks();
+    const fetchNotebooks = async (pageNum = 1) => {
+        if (!user) return;
+
+        setIsLoadingNotebooks(true);
+        try {
+            const response = await axios.get(`http://localhost:5000/api/notebook/list?page=${pageNum}&limit=10`, {
+                withCredentials: true
+            });
+
+            if (pageNum === 1) {
+                setSavedNotebooks(response.data.notebooks);
+            } else {
+                setSavedNotebooks(prev => [...prev, ...response.data.notebooks]);
+            }
+
+            setHasMore(response.data.notebooks.length > 0);
+            setPage(pageNum);
+        } catch (error) {
+            showAlert('Failed to fetch notebooks', 'error');
+        } finally {
+            setIsLoadingNotebooks(false);
         }
+    };
+
+    const loadMoreNotebooks = async () => {
+        await fetchNotebooks(page + 1);
+    };
+
+    useEffect(() => {
+        fetchNotebooks();
     }, [user]);
 
     useEffect(() => {
         if (user && location.state?.showSaveDialog) {
-            // Restore notebook state from localStorage
-            const savedNotebookState = localStorage.getItem('unsavedNotebookState');
-            if (savedNotebookState) {
-                const parsedState = JSON.parse(savedNotebookState);
-                setCells(parsedState.cells);
-                setNotebookName(parsedState.notebookName);
-                setHasUnsavedChanges(true);
-                localStorage.removeItem('unsavedNotebookState'); // Clear after restoring
-            }
-
             setShowSaveDialog(true);
             navigate(location.state.from || '/', { replace: true });
-        }
-        if (user && location.state?.ClearEditor) {
-            setIsResetNotebook(true);
         }
     }, [user, location.state, navigate]);
 
@@ -475,7 +634,6 @@ const NotebookApp = ({ showSidebar }) => {
         try {
             if (!user) return false;
 
-            // First check against locally stored notebooks
             const fileExists = savedNotebooks.some(notebook =>
                 notebook.name.toLowerCase() === name.toLowerCase()
             );
@@ -484,7 +642,6 @@ const NotebookApp = ({ showSidebar }) => {
                 return true;
             }
 
-            // Then check with server
             const response = await axios.get(
                 `http://localhost:5000/api/notebook/checkfilename/${encodeURIComponent(name)}`,
                 { withCredentials: true }
@@ -536,13 +693,12 @@ const NotebookApp = ({ showSidebar }) => {
                 return;
             }
 
-            // Modify your existing save logic to use the new file name
             const notebookData = {
-                name: notebookFileName, // Use the new file name
+                name: notebookFileName,
                 cells: cells
             };
 
-            await axios.post('http://localhost:5000/api/notebook/save',
+            const response = await axios.post('http://localhost:5000/api/notebook/save',
                 notebookData,
                 { withCredentials: true }
             );
@@ -550,12 +706,12 @@ const NotebookApp = ({ showSidebar }) => {
             setHasUnsavedChanges(false);
             setShowSaveDialog(false);
             setNotebookFileName('');
+            setCurrentNotebookId(response.data._id);
+            setNotebookName(notebookFileName);
+            setShowSaveSuccess(true);
+            setTimeout(() => setShowSaveSuccess(false), 2000);
             showAlert('Notebook saved successfully', 'success');
             await fetchNotebooks();
-            if (isResetNotebook) {
-                resetNotebook();
-                setIsResetNotebook(false);
-            }
         } catch (error) {
             showAlert('Failed to save notebook', 'error');
         } finally {
@@ -563,33 +719,14 @@ const NotebookApp = ({ showSidebar }) => {
         }
     };
 
-    const fetchNotebooks = async () => {
-        try {
-            const response = await axios.get('http://localhost:5000/api/notebook/list', {
-                withCredentials: true
-            });
-            setSavedNotebooks(response.data);
-        } catch (error) {
-            showAlert('Failed to fetch notebooks', 'error');
-        }
-    };
-
     const handleSaveNotebook = async () => {
-        setIsResetNotebook(true);
         if (!user) {
-            // Store current notebook state in localStorage before redirecting
-            localStorage.setItem('unsavedNotebookState', JSON.stringify({
-                cells,
-                notebookName
-            }));
-
             showAlert('Please login to save your notebook', 'info');
             setTimeout(() => {
                 navigate('/login', {
                     state: {
                         from: location.pathname,
-                        showSaveDialog: true,
-                        ClearEditor: true
+                        showSaveDialog: true
                     }
                 });
             }, 1500);
@@ -597,17 +734,11 @@ const NotebookApp = ({ showSidebar }) => {
         }
 
         if (!currentNotebookId) {
-            // If no current notebook, show save dialog to get filename
-            setShowNewNotebookDialog(false);
             setShowSaveDialog(true);
             return;
         }
-        if (isResetNotebook) {
-            resetNotebook();
-            setIsResetNotebook(false);
-        }
 
-        // Existing save logic for updating an existing notebook
+        setIsSaving(true);
         try {
             const notebookData = {
                 name: notebookName,
@@ -620,11 +751,14 @@ const NotebookApp = ({ showSidebar }) => {
             );
 
             setHasUnsavedChanges(false);
-            setShowNewNotebookDialog(false);
+            setShowSaveSuccess(true);
+            setTimeout(() => setShowSaveSuccess(false), 2000);
             showAlert('Notebook updated successfully', 'success');
             await fetchNotebooks();
         } catch (error) {
             showAlert('Failed to save notebook', 'error');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -633,33 +767,53 @@ const NotebookApp = ({ showSidebar }) => {
             const response = await axios.get(`http://localhost:5000/api/notebook/${notebookId}`, {
                 withCredentials: true
             });
-            setCells(response.data.cells.map(cell => ({
-                ...cell,
-                id: cell.id || GenerateUUID()
-            })));
+            const notebook = response.data;
 
-            setNotebookName(response.data.name);
+            setCells(notebook.cells.map((cell, index) => ({
+                ...cell,
+                id: cell.id || generateUUID(),
+                index
+            })));
+            setNotebookName(notebook.name);
             setCurrentNotebookId(notebookId);
             setHasUnsavedChanges(false);
+            showAlert('Notebook loaded successfully', 'success');
         } catch (error) {
             showAlert('Failed to load notebook', 'error');
         }
     };
 
     const deleteNotebook = async (notebookId) => {
-        try {
-            await axios.delete(`http://localhost:5000/api/notebook/${notebookId}`, {
-                withCredentials: true
-            });
+        const notebook = savedNotebooks.find(n => n._id === notebookId);
+        if (notebook) {
+            setProgramToDelete(notebook);
+            setDeleteDialogOpen(true);
+        }
+    };
 
-            showAlert('Notebook deleted successfully', 'success');
-            await fetchNotebooks();
+    const confirmDelete = async () => {
+        if (programToDelete) {
+            setIsDeleting(true);
+            try {
+                await axios.delete(`http://localhost:5000/api/notebook/${programToDelete._id}`, {
+                    withCredentials: true
+                });
 
-            if (currentNotebookId === notebookId) {
-                resetNotebook();
+                if (programToDelete._id === currentNotebookId) {
+                    resetNotebook();
+                }
+
+                setSavedNotebooks(notebooks =>
+                    notebooks.filter(n => n._id !== programToDelete._id)
+                );
+                setDeleteDialogOpen(false);
+                setProgramToDelete(null);
+                showAlert('Notebook deleted successfully', 'success');
+            } catch (error) {
+                showAlert('Failed to delete notebook', 'error');
+            } finally {
+                setIsDeleting(false);
             }
-        } catch (error) {
-            showAlert('Failed to delete notebook', 'error');
         }
     };
 
@@ -673,7 +827,8 @@ const NotebookApp = ({ showSidebar }) => {
 
     const resetNotebook = () => {
         setCells([{
-            id: GenerateUUID(),
+            id: generateUUID(),
+            type: 'code',
             code: '',
             language: defaultLanguage,
             height: 50,
@@ -688,18 +843,45 @@ const NotebookApp = ({ showSidebar }) => {
         showAlert('Created new notebook', 'success');
     };
 
+    const handleSaveAndNew = async () => {
+        if (!user) {
+            showAlert('Please login to save your notebook', 'info');
+            navigate('/login', {
+                state: {
+                    from: location.pathname,
+                    showSaveDialog: true
+                }
+            });
+            return;
+        }
+
+        if (currentNotebookId) {
+            await handleSaveNotebook();
+        } else {
+            setShowSaveDialog(true);
+        }
+        resetNotebook();
+    };
+
+    const handleDontSaveAndNew = () => {
+        setShowNewNotebookDialog(false);
+        resetNotebook();
+    };
+
     const showAlert = (message, type = 'info') => {
-        const id = GenerateUUID();
+        const id = generateUUID();
         setAlerts(prev => [...prev, { id, message, type }]);
         setTimeout(() => {
             setAlerts(prev => prev.filter(alert => alert.id !== id));
         }, 3000);
     };
 
-    const addCell = () => {
+    const addCell = (type = 'code') => {
         const newCell = {
-            id: GenerateUUID(),
-            code: '',
+            id: generateUUID(),
+            type,
+            code: type === 'code' ? '' : undefined,
+            content: type === 'text' ? '' : undefined,
             height: 50,
             language: defaultLanguage,
             index: cells.length,
@@ -743,6 +925,14 @@ const NotebookApp = ({ showSidebar }) => {
         );
     };
 
+    const updateCellContent = (id, newContent) => {
+        setCells(prev =>
+            prev.map(cell =>
+                cell.id === id ? { ...cell, content: newContent } : cell
+            )
+        );
+    };
+
     const updateCellLanguage = (id, newLanguage) => {
         setCells(prev =>
             prev.map(cell =>
@@ -759,10 +949,22 @@ const NotebookApp = ({ showSidebar }) => {
         );
     };
 
+    const updateCellType = (id, newType) => {
+        setCells(prev =>
+            prev.map(cell =>
+                cell.id === id ? {
+                    ...cell,
+                    type: newType,
+                    code: newType === 'code' ? (cell.code || '') : undefined,
+                    content: newType === 'text' ? (cell.content || '') : undefined
+                } : cell
+            )
+        );
+    };
+
     const handleDefaultLanguageChange = (newLanguage) => {
         setDefaultLanguage(newLanguage);
         if (isDefaultLanguageEnabled) {
-            // Only update cells that were using the old default language
             setCells(prev =>
                 prev.map(cell => ({
                     ...cell,
@@ -774,63 +976,124 @@ const NotebookApp = ({ showSidebar }) => {
 
     const toggleDefaultLanguage = () => {
         setIsDefaultLanguageEnabled(prev => !prev);
-        if (!isDefaultLanguageEnabled) {
-            // When enabling, update all cells to use their own language
-            setCells(prev =>
-                prev.map(cell => ({
-                    ...cell,
-                    language: cell.language
-                }))
+    };
+
+    const renderCell = (cell, index) => {
+        if (cell.type === 'text') {
+            return (
+                <TextCell
+                    key={cell.id}
+                    cell={cell}
+                    onDelete={deleteCell}
+                    onMoveUp={() => moveCell(cell.id, 'up')}
+                    onMoveDown={() => moveCell(cell.id, 'down')}
+                    isFirst={index === 0}
+                    isLast={index === cells.length - 1}
+                    onChange={updateCellContent}
+                    onNameChange={updateCellName}
+                />
+            );
+        } else {
+            return (
+                <NotebookCell
+                    key={cell.id}
+                    cell={cell}
+                    onRun={handleRun}
+                    onStop={handleStop}
+                    onDelete={deleteCell}
+                    onMoveUp={() => moveCell(cell.id, 'up')}
+                    onMoveDown={() => moveCell(cell.id, 'down')}
+                    isFirst={index === 0}
+                    isLast={index === cells.length - 1}
+                    onChange={updateCellCode}
+                    onLanguageChange={updateCellLanguage}
+                    onNameChange={updateCellName}
+                    defaultLanguage={defaultLanguage}
+                    isDefaultLanguageEnabled={isDefaultLanguageEnabled}
+                    sendWebSocketMessage={sendWebSocketMessage}
+                    isRunning={runningCells[cell.id]}
+                    onChangeType={updateCellType}
+                />
             );
         }
     };
 
     return (
-        <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
-            <div className="min-h-screen bg-gray-50 py-6 relative">
-                <NotebookSidebar
-                    notebooks={savedNotebooks}
-                    onLoad={loadNotebook}
-                    onDelete={deleteNotebook}
-                    visible={showSidebar}
-                />
+        <div className="flex min-h-screen">
+            <NotebookSidebar
+                notebooks={savedNotebooks}
+                onLoad={loadNotebook}
+                onDelete={deleteNotebook}
+                visible={showSidebar}
+                loadMore={loadMoreNotebooks}
+                hasMore={hasMore}
+            />
 
-                <div className="max-w-5xl mx-auto px-4 sm:px-6">
-                    <div className="fixed top-4 right-4 z-50 space-y-2">
-                        {alerts.map(alert => (
-                            <Alert key={alert.id} type={alert.type} message={alert.message} />
-                        ))}
-                    </div>
+            <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'ml-64' : 'ml-0'}`}>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="flex flex-col space-y-4">
+                        <div className="glass-card rounded-xl p-4 backdrop-blur-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex items-center flex-wrap gap-2">
+                                    <button
+                                        onClick={createNewNotebook}
+                                        className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                                    >
+                                        <FileText className="h-4 w-4 mr-1.5" />
+                                        New Notebook
+                                    </button>
+                                    <button
+                                        onClick={handleSaveNotebook}
+                                        disabled={!hasUnsavedChanges}
+                                        className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors relative"
+                                    >
+                                        {isSaving ? (
+                                            <svg className="animate-spin h-4 w-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                            </svg>
+                                        ) : (
+                                            <Save className={`h-4 w-4 mr-1.5 ${showSaveSuccess ? 'animate-pulse text-green-500' : ''}`} />
+                                        )}
+                                        {currentNotebookId ? 'Update' : 'Save'}
+                                        {showSaveSuccess && (
+                                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
 
-                    <div className="bg-white rounded-xl shadow-md p-5 mb-6 border border-gray-100">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                            <div className="flex items-center">
-                                <p
-                                    className="text-xl sm:text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-transparent  focus:border-blue-500 focus:outline-none transition-all w-full sm:w-auto"
-                                >{notebookName}</p>
-                                {hasUnsavedChanges && (
-                                    <span className="ml-2 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse">
-                                        Unsaved changes
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <label className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={isDefaultLanguageEnabled}
-                                        onChange={toggleDefaultLanguage}
-                                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-gray-600">Use Default Language</span>
-                                </label>
-                                {isDefaultLanguageEnabled && (
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-sm text-gray-600">Default:</span>
+                                <div className="flex items-center">
+                                    <div className="file-badge group relative">
+                                        <span className="text-sm font-medium text-gray-700 flex items-center">
+                                            {notebookName}
+                                            {hasUnsavedChanges && <span className="file-status file-status-unsaved"></span>}
+                                        </span>
+                                        {hasUnsavedChanges && (
+                                            <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                                Unsaved changes
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3">
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={isDefaultLanguageEnabled}
+                                            onChange={() => toggleDefaultLanguage()}
+                                            className="form-checkbox h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm text-gray-600">Use Default</span>
+                                    </label>
+                                    {isDefaultLanguageEnabled && (
                                         <select
                                             value={defaultLanguage}
                                             onChange={(e) => handleDefaultLanguageChange(e.target.value)}
-                                            className="text-sm border-gray-200 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            className="select block rounded-lg border-gray-200 bg-white text-gray-700 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         >
                                             {SUPPORTED_LANGUAGES.map(lang => (
                                                 <option key={lang.id} value={lang.id}>
@@ -838,86 +1101,30 @@ const NotebookApp = ({ showSidebar }) => {
                                                 </option>
                                             ))}
                                         </select>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-3 justify-between items-center">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                    onClick={createNewNotebook}
-                                    className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-md border border-gray-300 hover:bg-gray-50 shadow-sm transition-all"
-                                >
-                                    <FileText className="h-4 w-4 mr-1.5" />
-                                    New Notebook
-                                </button>
-                                <button
-                                    onClick={handleSaveNotebook}
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all"
-                                >
-                                    <Save className="h-4 w-4 mr-1.5" />
-                                    Save Notebook
-                                </button>
-                            </div>
+                        {cells.map((cell, index) => renderCell(cell, index))}
+
+                        <div className="flex justify-center space-x-2">
                             <button
-                                onClick={addCell}
-                                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition-all"
+                                onClick={() => addCell('code')}
+                                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                             >
                                 <Plus className="h-4 w-4 mr-1.5" />
-                                Add Cell
+                                Add Code Cell
+                            </button>
+                            <button
+                                onClick={() => addCell('text')}
+                                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <Type className="h-4 w-4 mr-1.5" />
+                                Add Text Cell
                             </button>
                         </div>
                     </div>
-
-                    <div className="space-y-6">
-                        {cells.map((cell, index) => (
-                            <NotebookCell
-                                key={cell.id}
-                                cell={cell}
-                                onRun={handleRun}
-                                onStop={handleStop}
-                                onDelete={deleteCell}
-                                onMoveUp={() => moveCell(cell.id, 'up')}
-                                onMoveDown={() => moveCell(cell.id, 'down')}
-                                isFirst={index === 0}
-                                isLast={index === cells.length - 1}
-                                onChange={updateCellCode}
-                                onLanguageChange={updateCellLanguage}
-                                onNameChange={updateCellName}
-                                defaultLanguage={defaultLanguage}
-                                isDefaultLanguageEnabled={isDefaultLanguageEnabled}
-                                sendWebSocketMessage={sendWebSocketMessage}
-                                isRunning={runningCells[cell.id]}
-                            />
-                        ))}
-                    </div>
-
-                    <CustomDialog
-                        isOpen={showNewNotebookDialog}
-                        onClose={() => setShowNewNotebookDialog(false)}
-                        title="Create New Notebook"
-                    >
-                        <div className="space-y-4">
-                            <p className="text-gray-600">
-                                You have unsaved changes in your current notebook. Would you like to save them before creating a new notebook?
-                            </p>
-                            <div className="flex justify-end space-x-2">
-                                <button
-                                    onClick={resetNotebook}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                                >
-                                    Don't Save
-                                </button>
-                                <button
-                                    onClick={handleSaveNotebook}
-                                    className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
-                                >
-                                    Save & Create New
-                                </button>
-                            </div>
-                        </div>
-                    </CustomDialog>
 
                     <CustomDialog
                         isOpen={showSaveDialog}
@@ -926,7 +1133,7 @@ const NotebookApp = ({ showSidebar }) => {
                             setNotebookFileName('');
                             setIsFileNameExists(false);
                         }}
-                        title="Save Your Notebook"
+                        title="Save Notebook"
                     >
                         <div className="space-y-4">
                             <div>
@@ -937,7 +1144,7 @@ const NotebookApp = ({ showSidebar }) => {
                                     <input
                                         id="notebookFileName"
                                         type="text"
-                                        className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isFileNameExists ? 'border-red-500 pr-10' : 'border-gray-300'}`}
+                                        className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isFileNameExists ? 'border-red-500 pr-10' : 'border-gray-300'}`}
                                         placeholder="Enter a name for your notebook"
                                         value={notebookFileName}
                                         onChange={handleFileNameChange}
@@ -964,17 +1171,17 @@ const NotebookApp = ({ showSidebar }) => {
                                         setIsFileNameExists(false);
                                     }}
                                     disabled={isSaving}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                                    className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveNotebookWithFileName}
                                     disabled={isFileNameExists || !notebookFileName.trim() || isSaving}
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors relative"
                                 >
                                     {isSaving ? (
-                                        <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <svg className="animate-spin h-4 w-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                         </svg>
@@ -986,10 +1193,56 @@ const NotebookApp = ({ showSidebar }) => {
                             </div>
                         </div>
                     </CustomDialog>
+
+                    <CustomDialog
+                        isOpen={showNewNotebookDialog}
+                        onClose={() => setShowNewNotebookDialog(false)}
+                        title="Create New Notebook"
+                    >
+                        <div className="space-y-4">
+                            <div className="p-4 bg-indigo-50 text-indigo-800 rounded-lg">
+                                <p className="text-sm">
+                                    You have unsaved changes. Would you like to save them before creating a new notebook?
+                                </p>
+                            </div>
+                            <div className="flex justify-end space-x-3 pt-2">
+                                <button
+                                    onClick={handleDontSaveAndNew}
+                                    className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                                >
+                                    Don't Save
+                                </button>
+                                <button
+                                    onClick={handleSaveAndNew}
+                                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                    <Save className="h-4 w-4 mr-1.5" />
+                                    Save & Create New
+                                </button>
+                            </div>
+                        </div>
+                    </CustomDialog>
+
+                    <DeleteConfirmationDialog
+                        isOpen={deleteDialogOpen}
+                        confirmDelete={confirmDelete}
+                        isDeleting={isDeleting}
+                        onClose={() => {
+                            setDeleteDialogOpen(false);
+                            setProgramToDelete(null);
+                        }}
+                        fileName={programToDelete?.name || ''}
+                    />
+
+                    <div className="fixed top-4 right-4 z-50 space-y-2">
+                        {alerts.map(alert => (
+                            <Alert key={alert.id} type={alert.type} message={alert.message} />
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-export default NotebookApp
+export default NotebookApp;
